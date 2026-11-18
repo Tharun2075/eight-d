@@ -201,6 +201,16 @@ async function createOrReusePage(io, spaceId, title, value) {
 // Bump when the seeded complaint texts change (2: labelled 5W2H lines for the 8D Coach).
 const DESCRIPTION_VERSION = 2;
 
+// Finds a work item in the project whose summary equals the demo case's exactly; null on none or on any search error.
+async function findDemoIssue(io, projectId, c) {
+  try {
+    const label = c.labels?.[0];
+    const jql = `project = ${projectId} AND summary ~ ${jqlString(c.summary)}${label ? ` AND labels = ${jqlString(label)}` : ''} ORDER BY created ASC`;
+    const found = await searchJql(io, jql, ['summary'], 5);
+    return found.find((it) => it.fields?.summary === c.summary) ?? null;
+  } catch { return null; }
+}
+
 export async function seedDemo(io, { projectKey, spaceId, now = Date.now(), clock = Date.now, budgetMs = 15000 } = {}) {
   const start = clock();
   if (!(await hasPermission(io, 'ADMINISTER'))) throw new Error('Only a Jira admin can load the demo data');
@@ -221,6 +231,14 @@ export async function seedDemo(io, { projectKey, spaceId, now = Date.now(), cloc
     if (isDone(c)) continue;
     if (clock() - start > budgetMs) { more = true; break; }
     const rec = done.cases[c.ref] ?? {};
+    if (!rec.key) {
+      // Forge storage is per install: adopt a work item another install already seeded instead of duplicating it.
+      const existing = await findDemoIssue(io, project.id, c);
+      if (existing) {
+        Object.assign(rec, { id: String(existing.id), key: existing.key, described: 0 });
+        await io.store.set(storageKey(rec.id), { ...c.state, issueId: rec.id, issueKey: rec.key });
+      }
+    }
     if (!rec.key) {
       const res = await io.jira('POST', '/rest/api/3/issue', {
         fields: { project: { id: String(project.id) }, issuetype: { name: 'Task' }, summary: c.summary, description: c.description, labels: c.labels },

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { demoCases, PART_FAMILY, HERO_PART } from '../src/lib/seed.js';
-import { gateProblems, containmentClock } from '../src/lib/eightd.js';
+import { gateProblems, containmentClock, storageKey } from '../src/lib/eightd.js';
 import { correctiveActionDrafts } from '../src/lib/actions.js';
 import * as svc from '../src/services.js';
 import { mockIo } from './mock-io.js';
@@ -197,4 +197,33 @@ test('graphSync resolver: admin only, returns the raw connector counts', async (
   admin.graphSync = async () => { calls += 1; return raw; };
   assert.deepEqual(await svc.graphSync(admin), raw);
   assert.equal(calls, 1);
+});
+
+test('seedDemo adopt: an exact summary match in the project is adopted, not created again', async () => {
+  const now = Date.parse('2026-11-18');
+  const first = demoCases(now)[0];
+  const io = mockIo({ perms: { ADMINISTER: true }, issues: [{ id: '501', key: 'QA-501', fields: { summary: first.summary, labels: first.labels, project: { key: 'QA' } } }] });
+  const r = await svc.seedDemo(io, { projectKey: 'QA', now });
+  assert.equal(r.created.issues, 8);
+  assert.equal(io.calls.filter((c) => c.method === 'POST' && c.path === '/rest/api/3/issue').length, 8);
+  assert.ok(r.keys.includes('QA-501'));
+  assert.equal((await io.store.get(storageKey('501'))).issueKey, 'QA-501');
+  assert.ok(io.calls.some((c) => c.method === 'PUT' && c.path === '/rest/api/3/issue/QA-501'));
+});
+
+test('seedDemo adopt: a near match (different summary) is not adopted, a work item is created', async () => {
+  const now = Date.parse('2026-11-18');
+  const first = demoCases(now)[0];
+  const io = mockIo({ perms: { ADMINISTER: true }, issues: [{ id: '501', key: 'QA-501', fields: { summary: `${first.summary} (copy)`, labels: first.labels, project: { key: 'QA' } } }] });
+  const r = await svc.seedDemo(io, { projectKey: 'QA', now });
+  assert.equal(r.created.issues, 9);
+  assert.ok(!r.keys.includes('QA-501'));
+});
+
+test('seedDemo adopt: a failing search falls back to creating the work item', async () => {
+  const io = mockIo({ perms: { ADMINISTER: true } });
+  const base = io.jira;
+  io.jira = async (m, p, b) => { if (p === '/rest/api/3/search/jql') throw new Error('search down'); return base(m, p, b); };
+  const r = await svc.seedDemo(io, { projectKey: 'QA', now: Date.parse('2026-11-18') });
+  assert.equal(r.created.issues, 9);
 });
