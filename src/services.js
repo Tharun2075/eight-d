@@ -198,6 +198,9 @@ async function createOrReusePage(io, spaceId, title, value) {
 // pages for the closed ones. Progress is saved after each step under 'seed:demo', so a rerun
 // continues and never duplicates; an existing page with the same title is reused. Forge stops a
 // resolver at 25 s, so after budgetMs no new case starts and the result says more: true; the UI calls again.
+// Bump when the seeded complaint texts change (2: labelled 5W2H lines for the 8D Coach).
+const DESCRIPTION_VERSION = 2;
+
 export async function seedDemo(io, { projectKey, spaceId, now = Date.now(), clock = Date.now, budgetMs = 15000 } = {}) {
   const start = clock();
   if (!(await hasPermission(io, 'ADMINISTER'))) throw new Error('Only a Jira admin can load the demo data');
@@ -208,9 +211,10 @@ export async function seedDemo(io, { projectKey, spaceId, now = Date.now(), cloc
   const labelErrors = [];
   const cases = demoCases(now);
   // `described` and `status` were added later: items from an older seed get them on the next press.
+  // `described` holds the description text version, so a rewritten complaint reaches existing items too.
   const isDone = (c) => {
     const r = done.cases[c.ref];
-    return !!r?.key && !!r.described && (!c.closed || !!r.status) && (!c.rootCause || !spaceId || (!!r.pageId && !!r.labelled));
+    return !!r?.key && r.described === DESCRIPTION_VERSION && (!c.closed || !!r.status) && (!c.rootCause || !spaceId || (!!r.pageId && !!r.labelled));
   };
   let more = false;
   for (const c of cases) {
@@ -221,15 +225,15 @@ export async function seedDemo(io, { projectKey, spaceId, now = Date.now(), cloc
       const res = await io.jira('POST', '/rest/api/3/issue', {
         fields: { project: { id: String(project.id) }, issuetype: { name: 'Task' }, summary: c.summary, description: c.description, labels: c.labels },
       });
-      Object.assign(rec, { id: String(res.id), key: res.key, described: true });
+      Object.assign(rec, { id: String(res.id), key: res.key, described: DESCRIPTION_VERSION });
       await io.store.set(storageKey(rec.id), { ...c.state, issueId: rec.id, issueKey: rec.key });
       created.issues += 1;
     }
     done.cases[c.ref] = rec;
     await io.store.set('seed:demo', done);
-    if (!rec.described) {
+    if (rec.described !== DESCRIPTION_VERSION) {
       await io.jira('PUT', `/rest/api/3/issue/${q(rec.key)}`, { fields: { description: c.description } });
-      rec.described = true;
+      rec.described = DESCRIPTION_VERSION;
       await io.store.set('seed:demo', done);
     }
     if (c.closed && !rec.status) {
