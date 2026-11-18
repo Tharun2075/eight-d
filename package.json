@@ -1,0 +1,18 @@
+{
+  "name": "eight-d",
+  "version": "0.1.0",
+  "description": "Eight-D: assistive 8D problem solving for Jira (Forge app)",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm --prefix static/eightd-ui run build",
+    "test": "node --test test/",
+    "lint": "forge lint"
+  },
+  "dependencies": {
+    "@forge/api": "^6.0.0",
+    "@forge/kvs": "^1.0.0",
+    "@forge/resolver": "^1.6.0"
+  }
+}

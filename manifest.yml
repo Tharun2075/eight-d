@@ -1,0 +1,110 @@
+# Eight-D: 8D / CAPA problem solving for Jira (Codegeist 2026 entry, THATCHED Ltd)
+# Assistive only: a human approves every D-step. No external egress.
+modules:
+  jira:issuePanel:
+    - key: eightd-issue-panel
+      resource: main
+      resolver:
+        function: resolver
+      title: 8D
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+  jira:globalPage:
+    - key: eightd-overview
+      resource: main
+      resolver:
+        function: resolver
+      title: 8D Overview
+  rovo:agent:
+    - key: eightd-coach
+      name: 8D Coach
+      description: Guides a quality team through the eight disciplines (D1-D8) of an 8D problem-solving report on a Jira work item.
+      prompt: >
+        You are 8D Coach, an assistant for industrial quality teams working an
+        8D (eight disciplines) problem-solving report on a Jira work item.
+        You are assistive only: you draft, a human decides. Never mark a D-step
+        approved; tell the user to press Approve in the 8D panel after review.
+
+        Steps: D1 team (roles, not named performance), D2 problem description
+        (5W2H: what, where, when, who-detects, why-it-matters, how, how-many),
+        D3 containment, D4 root cause (5 Whys, fishbone), D5 permanent
+        corrective actions, D6 implement and validate, D7 prevent recurrence,
+        D8 close and recognise the team.
+
+        Rules: use only facts from the work item and the actions' results;
+        say "unknown" when a fact is missing; never invent part numbers,
+        lots, dates or measurements. Never score, rank or blame individual
+        workers or operators; talk about processes, machines, parts and lots.
+        No medical, legal or financial advice. If the work item has the label
+        "safety", reply first: "Safety-related: notify your quality manager",
+        and do not draft any step.
+      conversationStarters:
+        - Draft the D2 problem statement for this work item
+        - Which 8Ds are still open?
+      actions:
+        - draftProblemStatement
+        - listOpen8Ds
+  action:
+    - key: draftProblemStatement
+      name: Draft 8D problem statement (5W2H)
+      function: draftProblemStatementFn
+      actionVerb: GET
+      description: Reads a Jira work item and returns a 5W2H draft of the D2 problem statement for a human to review and approve.
+      inputs:
+        issueKey:
+          title: Work item key
+          type: string
+          required: true
+          description: The Jira work item key, for example QA-12.
+    - key: listOpen8Ds
+      name: List open 8Ds
+      function: listOpen8DsFn
+      actionVerb: GET
+      description: Lists the 8D reports stored by Eight-D that are not yet closed (D8 not approved), with progress.
+  rovo:mcp:
+    - key: eightd-mcp
+      name: Eight-D MCP
+      tools:
+        - listOpen8Ds
+  graph:connector:
+    - key: eightd-quality-objects
+      name: Eight-D quality objects
+      icons:
+        light: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+        dark: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+      # Part, machine and supplier-lot records are pushed as documents with a
+      # "kind" property: the connector schema only accepts atlassian:* types.
+      objectTypes:
+        - atlassian:document
+      capabilities:
+        replicatesPermissions: false
+        syncFidelity: append
+        supportsIncrementalSync: false
+      datasource:
+        onConnectionChange:
+          function: onConnectionChangeFn
+  function:
+    - key: resolver
+      handler: index.handler
+    - key: draftProblemStatementFn
+      handler: index.draftProblemStatement
+    - key: listOpen8DsFn
+      handler: index.listOpen8Ds
+    - key: onConnectionChangeFn
+      handler: index.onConnectionChange
+resources:
+  - key: main
+    path: static/eightd-ui/build
+permissions:
+  scopes:
+    - read:jira-work
+    - storage:app
+    - write:object:jira
+    - read:object:jira
+    - delete:object:jira
+app:
+  runtime:
+    name: nodejs22.x
+    memoryMB: 256
+    architecture: arm64
+  # Placeholder id: replaced by `forge register` once an Atlassian developer account exists.
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
