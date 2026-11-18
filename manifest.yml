@@ -17,26 +17,27 @@ modules:
   rovo:agent:
     - key: eightd-coach
       name: 8D Coach
-      description: Guides a quality team through the eight disciplines (D1-D8) of an 8D problem-solving report on a Jira work item.
+      description: Guides a quality team through the eight disciplines (D1-D8) of an
+        8D problem-solving report on a Jira work item.
       prompt: >
         You are 8D Coach, an assistant for industrial quality teams working an
-        8D (eight disciplines) problem-solving report on a Jira work item.
-        You are assistive only: you draft, a human decides. Never mark a D-step
+        8D (eight disciplines) problem-solving report on a Jira work item. You
+        are assistive only: you draft, a human decides. Never mark a D-step
         approved; tell the user to press Approve in the 8D panel after review.
 
         Steps: D1 team (roles, not named performance), D2 problem description
         (5W2H: what, where, when, who-detects, why-it-matters, how, how-many),
         D3 containment, D4 root cause (5 Whys, fishbone), D5 permanent
-        corrective actions, D6 implement and validate, D7 prevent recurrence,
-        D8 close and recognise the team.
+        corrective actions, D6 implement and validate, D7 prevent recurrence, D8
+        close and recognise the team.
 
-        Rules: use only facts from the work item and the actions' results;
-        say "unknown" when a fact is missing; never invent part numbers,
-        lots, dates or measurements. Never score, rank or blame individual
-        workers or operators; talk about processes, machines, parts and lots.
-        No medical, legal or financial advice. If the work item has the label
-        "safety", reply first: "Safety-related: notify your quality manager",
-        and do not draft any step.
+        Rules: use only facts from the work item and the actions' results; say
+        "unknown" when a fact is missing; never invent part numbers, lots, dates
+        or measurements. Never score, rank or blame individual workers or
+        operators; talk about processes, machines, parts and lots. No medical,
+        legal or financial advice. If the work item has the label "safety",
+        reply first: "Safety-related: notify your quality manager", and do not
+        draft any step.
       conversationStarters:
         - Draft the D2 problem statement for this work item
         - Which 8Ds are still open?
@@ -54,7 +55,8 @@ modules:
       name: Draft 8D problem statement (5W2H)
       function: draftProblemStatementFn
       actionVerb: GET
-      description: Reads a Jira work item and returns a 5W2H draft of the D2 problem statement for a human to review and approve.
+      description: Reads a Jira work item and returns a 5W2H draft of the D2 problem
+        statement for a human to review and approve.
       inputs:
         issueKey:
           title: Work item key
@@ -65,14 +67,17 @@ modules:
       name: List open 8Ds
       function: listOpen8DsFn
       actionVerb: GET
-      description: Lists the 8D reports stored by Eight-D that are not yet closed (D8 not approved), with progress.
+      description: Lists the 8D reports stored by Eight-D that are not yet closed (D8
+        not approved), with progress.
     # The four actions below are read-only previews (actionVerb GET, PITFALLS 14). Creating work
     # items or publishing the report happens only when a human presses the button in the 8D panel.
     - key: findSimilarNonconformances
       name: Find similar nonconformances
       function: similarFn
       actionVerb: GET
-      description: Finds up to 3 past work items with the same part family or labels, with their approved root causes and citations (Jira links and Confluence root-cause pages the user can see).
+      description: Finds up to 3 past work items with the same part family or labels,
+        with their approved root causes and citations (Jira links and Confluence
+        root-cause pages the user can see).
       inputs:
         issueKey:
           title: Work item key
@@ -83,7 +88,9 @@ modules:
       name: Scaffold a 5-Why chain
       function: fiveWhyFn
       actionVerb: GET
-      description: Returns a draft 5-Why chain whose candidate answers come from similar past root causes. A human picks each answer and approves D4 in the 8D panel.
+      description: Returns a draft 5-Why chain whose candidate answers come from
+        similar past root causes. A human picks each answer and approves D4 in
+        the 8D panel.
       inputs:
         issueKey:
           title: Work item key
@@ -94,7 +101,9 @@ modules:
       name: Preview corrective actions
       function: correctiveActionsFn
       actionVerb: GET
-      description: Lists the corrective action work items (summary, owner, due date) that would be created from the approved D5 and D6 text. Creation needs a human click in the 8D panel.
+      description: Lists the corrective action work items (summary, owner, due date)
+        that would be created from the approved D5 and D6 text. Creation needs a
+        human click in the 8D panel.
       inputs:
         issueKey:
           title: Work item key
@@ -105,7 +114,9 @@ modules:
       name: Preview customer 8D report
       function: reportFn
       actionVerb: GET
-      description: Shows which approved D-steps would go into the customer 8D report page in Confluence. Publishing needs a human click at D8 in the 8D panel.
+      description: Shows which approved D-steps would go into the customer 8D report
+        page in Confluence. Publishing needs a human click at D8 in the 8D
+        panel.
       inputs:
         issueKey:
           title: Work item key
@@ -172,5 +183,4 @@ app:
     name: nodejs22.x
     memoryMB: 256
     architecture: arm64
-  # Placeholder id: replaced by `forge register` once an Atlassian developer account exists.
-  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+  id: ari:cloud:ecosystem::app/f753cecd-d0ad-48d6-a7a0-58834ff31188
