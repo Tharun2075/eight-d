@@ -7,16 +7,18 @@ modules:
       resolver:
         function: resolver
       title: 8D
-      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+      icon: resource:main;icons/logo-tile.svg
   jira:globalPage:
     - key: eightd-overview
       resource: main
       resolver:
         function: resolver
       title: 8D Overview
+      icon: resource:main;icons/logo-tile.svg
   rovo:agent:
     - key: eightd-coach
       name: 8D Coach
+      icon: resource:main;icons/logo-tile.svg
       description: Guides a quality team through the eight disciplines (D1-D8) of an
         8D problem-solving report on a Jira work item.
       prompt: >
@@ -136,8 +138,8 @@ modules:
     - key: eightd-quality-objects
       name: Eight-D quality objects
       icons:
-        light: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
-        dark: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+        light: resource:main;icons/logo-tile.svg
+        dark: resource:main;icons/logo-tile.svg
       # Part, machine and supplier-lot records are pushed as documents with a
       # "kind" property: the connector schema only accepts atlassian:* types.
       objectTypes:

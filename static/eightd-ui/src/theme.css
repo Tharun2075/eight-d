@@ -43,3 +43,5 @@ body { background: var(--ds-surface); color: var(--ds-text); font: var(--ds-font
 .ed-pareto-dot { fill: var(--ds-border-accent-orange); }
 .ed-pareto-pct { fill: var(--ds-text-accent-orange); paint-order: stroke; stroke: var(--ds-surface); stroke-width: 3px; stroke-linejoin: round; font: var(--ds-font-body-small); font-weight: 600; }
 .ed-pareto-inbar { fill: var(--ds-text-inverse); font: var(--ds-font-body-small); font-weight: 600; }
+.ed-heading { display: flex; align-items: center; gap: var(--ds-space-100); }
+.ed-mark { flex: none; width: 24px; height: 24px; }

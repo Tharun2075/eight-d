@@ -9,6 +9,9 @@ import { paretoGeometry } from '../../../src/lib/overview.js';
 import { Loading, ErrorMsg, Empty, ContainmentClock } from './ui.jsx';
 import { STEPS, progress, currentStep } from '../../../src/lib/eightd.js';
 
+// Our logo beside the page title; served from the resource's public/icons (same file the manifest icons use).
+const TitleMark = () => <img className="ed-mark" src="./icons/logo-tile.svg" alt="Eight-D" width="24" height="24" />;
+
 // The full 8D form (tabs, editors, assist cards) is its own chunk; the overview and panel load without it.
 const Workspace = lazy(() => import('./Workspace.jsx'));
 const SeedCard = lazy(() => import('./Admin.jsx'));
@@ -43,7 +46,7 @@ function FullPage({ issueKey, back }) {
   return (
     <div className="ed-page ed-col">
       <div><Button appearance="subtle" iconBefore={ArrowLeftIcon} onClick={back}>Open 8Ds</Button></div>
-      <h1 className="ed-title">{issueKey}{summary ? ` · ${summary}` : ''}</h1>
+      <h1 className="ed-title ed-heading"><TitleMark />{issueKey}{summary ? ` · ${summary}` : ''}</h1>
       <Suspense fallback={<Loading label="Loading 8D" />}>
         <Workspace issueKey={issueKey} onSummary={setSummary} />
       </Suspense>
@@ -107,7 +110,7 @@ function Overview({ open }) {
   }));
   return (
     <div className="ed-page ed-col">
-      <h1>Open 8Ds</h1>
+      <h1 className="ed-heading"><TitleMark />Open 8Ds</h1>
       <div className="ed-table">
         <DynamicTable head={head} rows={rows}
           emptyView={<EmptyState header="No open 8D reports" description="Open a work item and start its 8D, or load the demo data below." />} />
