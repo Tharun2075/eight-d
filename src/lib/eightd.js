@@ -74,6 +74,8 @@ export function gateProblems(state, stepId) {
   if (stepId === 'D4') {
     if (!confirmed('occurrence')) out.push('D4 needs at least one confirmed occurrence cause (why it happened)');
     if (!confirmed('escape')) out.push('D4 needs at least one confirmed escape cause (why it was not caught)');
+    const noEvidence = d.causes.filter((c) => c.kind === 'occurrence' && c.status === 'confirmed' && c.text && !String(c.evidence ?? '').trim());
+    if (noEvidence.length) out.push(`D4 needs evidence for the confirmed root cause (${noEvidence.map((c) => c.text).join(', ')}): add what was measured or tested`);
   }
   if (stepId === 'D7') {
     if (!d.lookAcross.length) out.push('D7 needs a look-across list (other parts, dies or lines checked)');

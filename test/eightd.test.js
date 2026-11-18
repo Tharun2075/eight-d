@@ -116,3 +116,17 @@ test('D3 containment clock: on time to 24 h, at risk to 48 h, late after; stops 
   const d = customerDeadlines(done, h(200));
   assert.deepEqual(d.map((x) => [x.id, x.met, x.late]), [['24h', true, false], ['5d', false, true], ['30d', false, false]]);
 });
+
+test('D4 approve is refused without evidence on the confirmed root cause and allowed with it', () => {
+  let s = initialState('9');
+  for (const st of ['D1', 'D2', 'D3']) s = reducer(s, { type: 'approve', stepId: st, accountId: 'u1', at });
+  const causes = (evidence) => [
+    { kind: 'occurrence', status: 'confirmed', text: 'Die radius worn', evidence },
+    { kind: 'escape', status: 'confirmed', text: 'Sampling missed it', evidence: 'seeded parts' },
+  ];
+  s = reducer(s, { type: 'setData', key: 'causes', value: causes('  ') });
+  assert.throws(() => reducer(s, { type: 'approve', stepId: 'D4', accountId: 'u1', at }), /evidence for the confirmed root cause \(Die radius worn\)/);
+  s = reducer(s, { type: 'setData', key: 'causes', value: causes('Radius measured 0.4 mm over spec') });
+  s = reducer(s, { type: 'approve', stepId: 'D4', accountId: 'u1', at });
+  assert.equal(s.steps.D4.approvedBy, 'u1');
+});
