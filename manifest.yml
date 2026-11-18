@@ -194,7 +194,7 @@ permissions:
     - delete:object:jira
 app:
   runtime:
-    name: nodejs22.x
+    name: nodejs24.x
     memoryMB: 256
     architecture: arm64
   id: ari:cloud:ecosystem::app/f753cecd-d0ad-48d6-a7a0-58834ff31188
