@@ -1,0 +1,53 @@
+# Eight-D: 8D problem solving for Jira
+
+Eight-D helps a quality team work through an 8D (eight disciplines) report on a
+Jira work item: D1 team, D2 problem (5W2H), D3 containment, D4 root cause,
+D5 corrective actions, D6 implement and validate, D7 prevent recurrence, D8 close.
+
+Parts:
+- **8D panel** on each work item: D1-D8 stepper, progress bar, text fields, Approve per step.
+- **8D Overview** global page: all open 8Ds you can see.
+- **8D Coach** Rovo agent, with the `draftProblemStatement` action (5W2H draft of D2)
+  and `listOpen8Ds`, also exposed through a Rovo MCP stub.
+- **Teamwork Graph connector stub** for part, machine and supplier-lot records.
+
+## Install
+
+Needs Node 22+, the Forge CLI (`npm i -g @forge/cli`) and an Atlassian developer account.
+
+1. `npm install` and `npm --prefix static/eightd-ui install`
+2. `npm run build` (builds the Custom UI into `static/eightd-ui/build`)
+3. `npm test` (unit tests for the step reducer and the safety check)
+4. `forge register` (replaces the placeholder `app.id` in `manifest.yml`)
+5. `forge lint`, then `forge deploy` and `forge install --product jira`
+
+## Assistive use: a human approves every step
+
+Eight-D is an assistant. It never decides anything on its own:
+- Every D-step is approved by a signed-in person; the approver and date are stored.
+  Steps are approved in order, and reopening a step reopens every later one.
+- The 8D Coach and the "Draft with 8D Coach" button only fill text fields with a
+  draft. A person reviews and edits it, then presses Approve.
+- Facts that are not on the work item are left as "unknown"; nothing is invented.
+- It talks about processes, parts, machines and lots. It never scores or ranks people.
+- **Safety:** if the work item has the label `safety`, the panel shows
+  "Safety-related: notify your quality manager" and the automation buttons are
+  disabled. The agent replies with the same message and drafts nothing.
+
+## Data flow
+
+- **Storage:** 8D state is kept in Forge hosted storage (KVS) in the customer's
+  Atlassian site, one record per work item (`8d:<issueId>`).
+- **Reads:** work items are read through the Jira REST API as the signed-in user,
+  so nobody sees an 8D for a work item Jira hides from them.
+- **No egress:** the manifest declares no external fetch permissions. No data
+  leaves Atlassian's Forge platform.
+- **Roles:** the customer is the Data Fiduciary (data controller) for the
+  content of their work items and 8D reports. Eight-D (THATCHED Ltd) acts only
+  as a processor, on the customer's instructions, inside Forge.
+- **Scopes:** `read:jira-work`, `storage:app`, and `read/write/delete:object:jira`
+  for the Teamwork Graph connector stub.
+
+## Licence
+
+MIT, Copyright (c) 2026 THATCHED Ltd. See LICENSE and THIRD-PARTY-LICENSES.md.

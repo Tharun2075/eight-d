@@ -9,15 +9,29 @@ import {
 
 const ISSUE_FIELDS = 'summary,description,labels,components,created,reporter';
 
-async function readIssue(issueIdOrKey, asUser) {
-  const client = asUser ? api.asUser() : api.asApp();
-  const res = await client.requestJira(route`/rest/api/3/issue/${issueIdOrKey}?fields=${ISSUE_FIELDS}`);
+// Always read as the signed-in user, so nobody sees a work item Jira would hide from them.
+async function readIssue(issueIdOrKey) {
+  const res = await api.asUser().requestJira(route`/rest/api/3/issue/${issueIdOrKey}?fields=${ISSUE_FIELDS}`);
   if (!res.ok) throw new Error(`Jira returned ${res.status} for ${issueIdOrKey}`);
   return res.json();
 }
 
 async function loadState(issueId, issueKey) {
   return (await kvs.get(storageKey(issueId))) ?? initialState(issueId, issueKey);
+}
+
+// Keeps only the work items the signed-in user may browse (JQL search runs as the user).
+async function visibleIds(ids) {
+  const visible = new Set();
+  for (let i = 0; i < ids.length; i += 100) {
+    const res = await api.asUser().requestJira(route`/rest/api/3/search/jql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jql: `id in (${ids.slice(i, i + 100).map(Number).join(',')})`, fields: ['id'], maxResults: 100 }),
+    });
+    if (res.ok) for (const it of (await res.json()).issues ?? []) visible.add(String(it.id));
+  }
+  return visible;
 }
 
 async function listOpen() {
@@ -30,21 +44,31 @@ async function listOpen() {
     }
     cursor = page.nextCursor;
   } while (cursor);
-  return out;
+  const visible = await visibleIds(out.map((o) => o.issueId));
+  return out.filter((o) => visible.has(String(o.issueId)));
+}
+
+async function canEdit(issueId) {
+  const res = await api.asUser().requestJira(route`/rest/api/3/mypermissions?issueId=${issueId}&permissions=EDIT_ISSUES`);
+  return res.ok && Boolean((await res.json()).permissions?.EDIT_ISSUES?.havePermission);
 }
 
 const resolver = new Resolver();
 
 resolver.define('getState', async ({ context }) => {
   const { id, key } = context.extension.issue;
-  const issue = await readIssue(id, true);
+  const issue = await readIssue(id);
   return { state: await loadState(id, key), safety: isSafetyRelated(issue.fields?.labels) };
 });
 
-// One reducer action per call; the approver is always the signed-in human.
+// One reducer action per call. Only known fields pass; the approver is always the
+// signed-in human and the timestamp is set here, never by the browser.
 resolver.define('dispatch', async ({ payload, context }) => {
   const { id, key } = context.extension.issue;
-  const action = { ...payload.action, accountId: context.accountId };
+  const { type, stepId, field, value } = payload?.action ?? {};
+  if (!['setField', 'approve', 'reopen'].includes(type)) throw new Error(`Unknown action ${type}`);
+  if (type !== 'setField' && !(await canEdit(id))) throw new Error('You need edit permission on this work item');
+  const action = { type, stepId, field, value, accountId: context.accountId, at: new Date().toISOString() };
   const next = reducer(await loadState(id, key), action);
   await kvs.set(storageKey(id), next);
   return { state: next };
@@ -53,7 +77,7 @@ resolver.define('dispatch', async ({ payload, context }) => {
 // Fills D2 with a 5W2H draft; fields are only set, never approved.
 resolver.define('draftD2', async ({ context }) => {
   const { id, key } = context.extension.issue;
-  const issue = await readIssue(id, true);
+  const issue = await readIssue(id);
   if (isSafetyRelated(issue.fields?.labels)) throw new Error(SAFETY_MESSAGE);
   const draft = draft5W2H(issue);
   let state = await loadState(id, key);
@@ -72,7 +96,7 @@ export const handler = resolver.getDefinitions();
 export async function draftProblemStatement(payload) {
   const issueKey = payload?.issueKey ?? payload?.context?.jira?.issueKey;
   if (!issueKey) return { error: 'Give a Jira work item key, for example QA-12.' };
-  const issue = await readIssue(issueKey, false);
+  const issue = await readIssue(issueKey);
   if (isSafetyRelated(issue.fields?.labels)) return { safety: true, message: SAFETY_MESSAGE };
   return { issueKey, draft: draft5W2H(issue), approval: 'A human must review this draft and press Approve on D2 in the 8D panel.' };
 }
