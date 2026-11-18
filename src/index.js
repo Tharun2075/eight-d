@@ -1,9 +1,10 @@
-// Eight-D Forge backend: resolver for the Custom UI, Rovo actions, connector stub.
+// Eight-D Forge backend: resolver for the Custom UI, Rovo actions, Teamwork Graph connector.
 // Data stays in Forge hosted storage (KVS). No external egress.
 import Resolver from '@forge/resolver';
 import api, { route, assumeTrustedRoute } from '@forge/api';
 import { kvs, WhereConditions } from '@forge/kvs';
 import * as svc from './services.js';
+import { syncConnector, makeGraphReader } from './graph.js';
 import {
   normalize, reducer, storageKey, isSafetyRelated, draft5W2H, SAFETY_MESSAGE,
 } from './lib/eightd.js';
@@ -106,8 +107,14 @@ async function makeIo() {
   };
 }
 
-// Teamwork Graph reader: filled in by the graph feature; null means "use the Jira fallback".
-async function graphReader() { return null; }
+// Teamwork Graph reader as the user; null (TG_ENABLED=false) means "use the Jira fallback".
+async function graphReader() {
+  return makeGraphReader(async (query, variables) => {
+    const res = await api.asUser().requestGraph(query, variables);
+    if (!res.ok) throw new Error(`Teamwork Graph returned ${res.status}`);
+    return res.json();
+  });
+}
 
 const issueOf = (context) => context.extension.issue;
 
@@ -175,21 +182,19 @@ export async function listOpen8Ds() {
   return { items: (await svc.overview(await makeIo())).items };
 }
 
-// Teamwork Graph connector stub: no external source yet, so connections are accepted
-// and nothing is synced. buildQualityObject shows the object shape for later work.
-export async function onConnectionChange() {
-  return { success: true };
+// Teamwork Graph connector: when an admin connects, push the part, machines, supplier lots and the
+// status of every 8D (status only with TG_STATUS_PUBLIC=true). Runs without a user, so it reads only app storage, never Jira content.
+export async function onConnectionChange(event) {
+  if (event?.action === 'DELETED') return { success: true };
+  const records = [];
+  let cursor;
+  do {
+    const page = await kvs.query().where('key', WhereConditions.beginsWith('8d:')).limit(50).cursor(cursor).getMany();
+    records.push(...page.results.map((r) => normalize(r.value)));
+    cursor = page.nextCursor;
+  } while (cursor);
+  const result = await syncConnector({ records, connectionId: event?.connectionId });
+  return { success: true, result };
 }
 
-export function buildQualityObject({ kind, id, name, description = '', url = '' }) {
-  if (!['part', 'machine', 'supplier-lot'].includes(kind)) throw new Error(`Unknown kind ${kind}`);
-  return {
-    schemaVersion: '1.0',
-    id: `${kind}:${id}`,
-    displayName: name,
-    description,
-    url,
-    'atlassian:document': { type: { category: 'document' }, content: { mimeType: 'text/plain', text: `${kind}: ${name}` } },
-    attributes: { kind },
-  };
-}
+export { buildQualityObject } from './graph.js';
