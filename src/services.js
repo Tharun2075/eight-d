@@ -189,15 +189,22 @@ async function createOrReusePage(io, spaceId, title, value) {
 
 // Admin-only demo data: 6 closed and 2 open 8Ds on BRKT-200 plus the BR-4417 hero, with root-cause
 // pages for the closed ones. Progress is saved after each step under 'seed:demo', so a rerun
-// continues and never duplicates; an existing page with the same title is reused.
-export async function seedDemo(io, { projectKey, spaceId, now = Date.now() } = {}) {
+// continues and never duplicates; an existing page with the same title is reused. Forge stops a
+// resolver at 25 s, so after budgetMs no new case starts and the result says more: true; the UI calls again.
+export async function seedDemo(io, { projectKey, spaceId, now = Date.now(), clock = Date.now, budgetMs = 15000 } = {}) {
+  const start = clock();
   if (!(await hasPermission(io, 'ADMINISTER'))) throw new Error('Only a Jira admin can load the demo data');
   if (!projectKey) return { error: 'Choose a Jira project for the demo work items.' };
   const project = await io.jira('GET', `/rest/api/3/project/${q(projectKey)}`);
   const done = (await io.store.get('seed:demo')) ?? { cases: {} };
   const created = { issues: 0, pages: 0 };
   const labelErrors = [];
-  for (const c of demoCases(now)) {
+  const cases = demoCases(now);
+  const isDone = (c) => { const r = done.cases[c.ref]; return !!r?.key && (!c.rootCause || !spaceId || (!!r.pageId && !!r.labelled)); };
+  let more = false;
+  for (const c of cases) {
+    if (isDone(c)) continue;
+    if (clock() - start > budgetMs) { more = true; break; }
     const rec = done.cases[c.ref] ?? {};
     if (!rec.key) {
       const res = await io.jira('POST', '/rest/api/3/issue', {
@@ -226,8 +233,9 @@ export async function seedDemo(io, { projectKey, spaceId, now = Date.now() } = {
       }
     }
   }
+  const keys = Object.values(done.cases).map((r) => r.key).filter(Boolean);
   return {
-    created, keys: Object.values(done.cases).map((r) => r.key), error: null,
+    more, created, keys, done: cases.filter((c) => done.cases[c.ref]?.key).length, total: cases.length, error: null,
     warning: labelErrors.length ? `Pages saved, but labels could not be added (${labelErrors[0]})` : null,
   };
 }

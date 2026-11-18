@@ -238,6 +238,7 @@ function SeedCard() {
   const [space, setSpace] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [progress, setProgress] = useState(null);
   useEffect(() => {
     invoke('isAdmin').then((r) => {
       setAdmin(r.admin);
@@ -246,11 +247,23 @@ function SeedCard() {
   }, []);
   if (!admin) return null;
   const seed = async () => {
-    setBusy(true); setMsg(null);
+    setBusy(true); setMsg(null); setProgress(null);
     try {
-      const r = await invoke('seedDemo', { projectKey: projectKey.trim().toUpperCase(), spaceId: space?.value ?? '' });
-      setMsg(r.error ? { error: r.error } : { ok: `Demo ready: ${r.created.issues} work items and ${r.created.pages} root-cause pages added (${r.keys.join(', ')}).` });
+      // Each call stops after ~15 s (Forge limit is 25 s) and says more: true; call again until it is done.
+      const total = { issues: 0, pages: 0 };
+      let r;
+      for (let i = 0; i < 12; i += 1) {
+        r = await invoke('seedDemo', { projectKey: projectKey.trim().toUpperCase(), spaceId: space?.value ?? '' });
+        if (r.error) break;
+        total.issues += r.created.issues; total.pages += r.created.pages;
+        setProgress(`Loading demo data: ${r.done} of ${r.total}`);
+        if (!r.more) break;
+      }
+      if (r.error) setMsg({ error: r.error });
+      else if (r.more) setMsg({ error: `Stopped at ${r.done} of ${r.total}. Press Load demo data again to continue.` });
+      else setMsg({ ok: `Demo ready: ${total.issues} work items and ${total.pages} root-cause pages added (${r.keys.join(', ')}).`, warning: r.warning });
     } catch (e) { setMsg({ error: e.message }); }
+    setProgress(null);
     setBusy(false);
   };
   return (
@@ -265,7 +278,9 @@ function SeedCard() {
         </div>
         <Button appearance="primary" isLoading={busy} isDisabled={!projectKey.trim()} onClick={seed}>Load demo data</Button>
       </div>
+      {progress && <p className="ed-muted" role="status">{progress}</p>}
       {msg?.ok && <SectionMessage appearance="success"><p>{msg.ok}</p></SectionMessage>}
+      {msg?.warning && <SectionMessage appearance="warning"><p>{msg.warning}</p></SectionMessage>}
       <ErrorMsg error={msg?.error} />
       <GraphCheck />
     </section>
