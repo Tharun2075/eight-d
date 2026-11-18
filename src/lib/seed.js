@@ -6,14 +6,14 @@ export const DEMO_LABEL = 'eightd-demo';
 export const PART_FAMILY = 'BRKT-200';
 export const HERO_PART = 'BR-4417';
 export const MACHINES = [
-  { id: 'PR-3', name: 'Press PR-3', label: 'machine-pr3' },
-  { id: 'LC-1', name: 'Laser cell LC-1', label: 'machine-lc1' },
-  { id: 'WR-2', name: 'Weld robot WR-2', label: 'machine-wr2' },
+  { id: 'PR-3', name: 'Press 3 (PR-3)', label: 'machine-pr3' },
+  { id: 'LC-1', name: 'Laser cell 1 (LC-1)', label: 'machine-lc1' },
+  { id: 'WR-2', name: 'Weld robot 2 (WR-2)', label: 'machine-wr2' },
 ];
 export const LOTS = [
-  { id: 'LOT-2609-A', supplier: 'Supplier A (coil steel)', label: 'lot-2609a' },
-  { id: 'LOT-2610-B', supplier: 'Supplier B (fasteners)', label: 'lot-2610b' },
-  { id: 'LOT-2611-A', supplier: 'Supplier A (coil steel)', label: 'lot-2611a' },
+  { id: 'L-2240', supplier: 'Northfield Stamping', label: 'lot-l2240' },
+  { id: 'L-2252', supplier: 'Northfield Stamping', label: 'lot-l2252' },
+  { id: 'L-2268', supplier: 'Northfield Stamping', label: 'lot-l2268' },
   { id: 'L-2291', supplier: 'Northfield Stamping', label: 'lot-l2291' },
 ];
 
@@ -22,37 +22,37 @@ const iso = (now, daysAgo) => new Date(now - daysAgo * DAY).toISOString();
 
 // summary, machine, lot, cause category, 5-Why chain, action, started N days ago.
 const CASES = [
-  ['Burr on mounting hole of BRKT-200', 'PR-3', 'LOT-2609-A', 'Machine',
+  ['Burr on mounting hole of BRKT-200', 'PR-3', 'L-2240', 'Machine',
     ['Burr height above 0.2 mm on hole 2', 'Punch edge worn', 'Punch past its stroke limit', 'Stroke counter not checked at shift start', 'No stroke limit in the press start-up checklist'],
     'Add punch stroke limit to the PR-3 start-up checklist | owner: Toolroom lead', 210],
-  ['Hole position out of tolerance on BRKT-200', 'LC-1', 'LOT-2609-A', 'Method',
+  ['Hole position out of tolerance on BRKT-200', 'LC-1', 'L-2240', 'Method',
     ['Hole 1 shifted 0.4 mm', 'Sheet not seated against the datum pins', 'Datum pin worn flat', 'Pin wear not in the preventive maintenance plan', 'PM plan copied from an older cell'],
     'Add datum pin wear check to LC-1 maintenance plan | owner: Maintenance planner', 180],
-  ['Weld spatter on BRKT-200 flange', 'WR-2', 'LOT-2610-B', 'Machine',
+  ['Weld spatter on BRKT-200 flange', 'WR-2', 'L-2252', 'Machine',
     ['Spatter on flange face', 'Wire feed speed too high', 'Program changed after nozzle swap', 'No sign-off after program edits', 'Change control does not cover robot programs'],
     'Bring robot program edits under change control | owner: Process engineer', 150],
-  ['Cracked bend on BRKT-200 after forming', 'PR-3', 'LOT-2611-A', 'Material',
+  ['Cracked bend on BRKT-200 after forming', 'PR-3', 'L-2268', 'Material',
     ['Crack on outer bend radius', 'Coil hardness at top of range', 'Incoming check samples one coil in ten', 'Sampling plan set before supplier change', 'Supplier change did not trigger a sampling review'],
-    'Raise incoming hardness sampling to every coil for LOT-2611-A | owner: Incoming inspector', 120],
-  ['Wrong gauge reading on BRKT-200 hole diameter', 'LC-1', 'LOT-2610-B', 'Measurement',
+    'Raise incoming hardness sampling to every coil for lot L-2268 | owner: Incoming inspector', 120],
+  ['Wrong gauge reading on BRKT-200 hole diameter', 'LC-1', 'L-2252', 'Measurement',
     ['Good parts rejected at final check', 'Pin gauge out of calibration', 'Calibration due date missed', 'Gauge not in the calibration list', 'New gauges are not registered at receipt'],
     'Register every new gauge at receipt | owner: Quality engineer', 90],
-  ['Mixed revisions of BRKT-200 in one box', 'WR-2', 'LOT-2611-A', 'Management system',
+  ['Mixed revisions of BRKT-200 in one box', 'WR-2', 'L-2268', 'Management system',
     ['Rev B and Rev C parts in one box', 'Old stock not quarantined', 'Revision change had no stock purge step', 'Engineering change form lacks a stock step', 'Form owned by design only'],
     'Add a stock purge step to the engineering change form | owner: Quality manager', 75],
 ];
 
 const OPEN = [
   // Started 40 days ago and still on D5: shows the "late on D5" flag.
-  { summary: 'Missing weld nut on BRKT-200', machine: 'WR-2', lot: 'LOT-2610-B', daysAgo: 40, upTo: 'D4', cause: 'Method' },
-  { summary: 'Scratches on BRKT-200 coating', machine: 'PR-3', lot: 'LOT-2611-A', daysAgo: 6, upTo: 'D2', cause: '' },
+  { summary: 'Missing weld nut on BRKT-200', machine: 'WR-2', lot: 'L-2252', daysAgo: 40, upTo: 'D4', cause: 'Method' },
+  { summary: 'Scratches on BRKT-200 coating', machine: 'PR-3', lot: 'L-2268', daysAgo: 6, upTo: 'D2', cause: '' },
 ];
 
 function fieldsFor(c, machine, lot) {
   return {
     D1: { roles: 'Champion: Quality manager. Members: Process engineer, Shift lead, Incoming inspector.', champion: 'Quality manager' },
     D2: {
-      what: c.summary, where: `${machine.name}, Plant North`, when: 'Found at final inspection', who: 'Final inspection',
+      what: c.summary, where: `Northfield Stamping, ${machine.name}`, when: 'Found at final inspection', who: 'Final inspection',
       why: `Part family ${PART_FAMILY} ships to an assembly customer`, how: 'Visual and gauge check', howMany: `${c.count ?? 40} parts from ${lot.id}`,
     },
     D3: { actions: `Quarantine ${lot.id} stock and 100% check finished goods`, verification: 'No escapes in the next 3 shipments' },
