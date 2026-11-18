@@ -34,6 +34,12 @@ test('pareto geometry: tallest bar first, line points match bars', () => {
   const g = paretoGeometry(paretoCauses(cases.map((c) => normalize(c.state))));
   assert.equal(g.bars[0].h, Math.max(...g.bars.map((b) => b.h)));
   assert.equal(g.line.split(' ').length, g.bars.length);
+  assert.equal(g.height, 240);
+  assert.equal(g.points.at(-1).label, '100%');
+  assert.equal(g.points.at(-1).y, g.plot.y);
+  assert.equal(g.yTicks[0].value, 0);
+  assert.ok(g.yTicks.at(-1).value >= g.bars[0].count);
+  for (const b of g.bars) assert.ok(b.y >= g.plot.y && b.y + b.h <= g.base + 0.001);
   assert.deepEqual(paretoGeometry([]).bars, []);
 });
 

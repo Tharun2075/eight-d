@@ -45,19 +45,24 @@ export function paretoCauses(states) {
     .map(([category, count]) => { run += count; return { category, count, cumulative: Math.round((run / total) * 100) }; });
 }
 
-// Bar and cumulative-line geometry for an SVG of width x height (no chart library).
-export function paretoGeometry(rows, { width = 560, height = 240, pad = 32 } = {}) {
-  if (!rows.length) return { bars: [], line: '', width, height, pad };
-  const max = rows[0].count;
-  const plotW = width - pad * 2;
-  const plotH = height - pad * 2;
-  const slot = plotW / rows.length;
+// Bar and cumulative-line geometry for a fixed-size SVG (no chart library): a count axis on the
+// left, a 0-100 % axis on the right, room above for the legend and below for category names.
+export function paretoGeometry(rows, { width = 640, height = 240, left = 36, right = 40, top = 32, bottom = 28 } = {}) {
+  const plot = { x: left, y: top, w: width - left - right, h: height - top - bottom };
+  const base = plot.y + plot.h;
+  if (!rows.length) return { bars: [], points: [], line: '', yTicks: [], width, height, plot, base };
+  const step = Math.max(1, Math.ceil(rows[0].count / 4));
+  const max = step * Math.ceil(rows[0].count / step);
+  const slot = plot.w / rows.length;
   const bars = rows.map((r, i) => {
-    const h = (r.count / max) * plotH;
-    return { ...r, x: pad + i * slot + slot * 0.15, y: pad + plotH - h, w: slot * 0.7, h, cx: pad + i * slot + slot / 2 };
+    const h = (r.count / max) * plot.h;
+    return { ...r, x: plot.x + i * slot + slot * 0.2, y: base - h, w: slot * 0.6, h, cx: plot.x + i * slot + slot / 2 };
   });
-  const line = bars.map((b) => `${b.cx.toFixed(1)},${(pad + plotH - (b.cumulative / 100) * plotH).toFixed(1)}`).join(' ');
-  return { bars, line, width, height, pad };
+  const points = bars.map((b) => ({ x: b.cx, y: base - (b.cumulative / 100) * plot.h, label: `${b.cumulative}%` }));
+  const yTicks = [];
+  for (let v = 0; v <= max; v += step) yTicks.push({ value: v, y: base - (v / max) * plot.h });
+  const line = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  return { bars, points, line, yTicks, width, height, plot, base, slot };
 }
 
 export { STEPS };

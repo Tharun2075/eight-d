@@ -222,20 +222,42 @@ function Deadlines({ list }) {
 function Pareto({ rows }) {
   if (!rows.length) return <Empty>No approved root causes yet.</Empty>;
   const g = paretoGeometry(rows);
-  const base = g.height - g.pad;
+  const right = g.plot.x + g.plot.w;
+  const small = g.slot < 84;
   return (
-    <svg className="ed-pareto" viewBox={`0 0 ${g.width} ${g.height + 28}`} role="img"
-      aria-label={rows.map((r) => `${r.category} ${r.count}`).join(', ')}>
-      <line x1={g.pad} y1={base} x2={g.width - g.pad} y2={base} className="ed-pareto-axis" />
+    <svg className="ed-pareto" viewBox={`0 0 ${g.width} ${g.height}`} width={g.width} height={g.height} role="img"
+      aria-label={rows.map((r) => `${r.category} ${r.count}, cumulative ${r.cumulative}%`).join('; ')}>
+      <g className="ed-pareto-legend">
+        <rect x={g.plot.x} y={6} width={12} height={12} className="ed-pareto-bar" />
+        <text x={g.plot.x + 18} y={16} className="ed-pareto-text">count</text>
+        <line x1={g.plot.x + 76} y1={12} x2={g.plot.x + 96} y2={12} className="ed-pareto-line" />
+        <circle cx={g.plot.x + 86} cy={12} r={3} className="ed-pareto-dot" />
+        <text x={g.plot.x + 102} y={16} className="ed-pareto-text">cumulative %</text>
+      </g>
+      {g.yTicks.map((t) => (
+        <g key={t.value}>
+          <line x1={g.plot.x} y1={t.y} x2={right} y2={t.y} className="ed-pareto-grid" />
+          <text x={g.plot.x - 6} y={t.y + 4} textAnchor="end" className="ed-pareto-muted">{t.value}</text>
+        </g>
+      ))}
+      {[0, 50, 100].map((p) => (
+        <text key={p} x={right + 6} y={g.base - (p / 100) * g.plot.h + 4} className="ed-pareto-muted">{p}%</text>
+      ))}
+      <line x1={g.plot.x} y1={g.base} x2={right} y2={g.base} className="ed-pareto-axis" />
       {g.bars.map((b) => (
         <g key={b.category}>
           <rect x={b.x} y={b.y} width={b.w} height={b.h} className="ed-pareto-bar"><title>{`${b.category}: ${b.count}`}</title></rect>
-          <text x={b.cx} y={b.y - 4} textAnchor="middle" className="ed-pareto-text">{b.count}</text>
-          <text x={b.cx} y={base + 14} textAnchor="middle" className="ed-pareto-text">{b.category}</text>
-          <text x={b.cx} y={base + 26} textAnchor="middle" className="ed-pareto-muted">{b.cumulative}%</text>
+          <text x={b.cx} y={b.h > 18 ? b.y + 14 : b.y - 4} textAnchor="middle" className={b.h > 18 ? 'ed-pareto-inbar' : 'ed-pareto-text'}>{b.count}</text>
+          <text x={b.cx} y={g.base + 16} textAnchor="middle" className="ed-pareto-text" fontSize={small ? 10 : undefined}>{b.category}<title>{b.category}</title></text>
         </g>
       ))}
       <polyline points={g.line} className="ed-pareto-line" />
+      {g.points.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r={3} className="ed-pareto-dot" />
+          <text x={p.x + 6} y={p.y - 6} className="ed-pareto-pct">{p.label}</text>
+        </g>
+      ))}
     </svg>
   );
 }

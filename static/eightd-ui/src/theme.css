@@ -16,7 +16,7 @@ body { background: var(--ds-surface); color: var(--ds-text); font: var(--ds-font
 .ed-state { display: flex; gap: var(--ds-space-100); align-items: center; color: var(--ds-text-subtle); }
 .ed-cites a { margin-right: var(--ds-space-100); color: var(--ds-link); }
 .ed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--ds-space-150); }
-.ed-pareto { width: 100%; max-width: 640px; }
+.ed-pareto { display: block; width: 100%; max-width: 640px; height: auto; max-height: 240px; overflow: visible; }
 .ed-pareto-axis { stroke: var(--ds-border); }
 .ed-pareto-bar { fill: var(--ds-background-brand-bold); }
 .ed-pareto-line { fill: none; stroke: var(--ds-border-accent-orange); stroke-width: 2; }
@@ -31,3 +31,7 @@ body { background: var(--ds-surface); color: var(--ds-text); font: var(--ds-font
 .ed-title { overflow-wrap: anywhere; }
 .ed-clock { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-025); }
 .ed-clock-note { color: var(--ds-text-subtlest); font: var(--ds-font-body-small); }
+.ed-pareto-grid { stroke: var(--ds-border); stroke-dasharray: 2 3; opacity: 0.6; }
+.ed-pareto-dot { fill: var(--ds-border-accent-orange); }
+.ed-pareto-pct { fill: var(--ds-text-accent-orange); font: var(--ds-font-body-small); font-weight: 600; }
+.ed-pareto-inbar { fill: var(--ds-text-inverse); font: var(--ds-font-body-small); font-weight: 600; }
