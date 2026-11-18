@@ -12,9 +12,9 @@
     "lint": "forge lint"
   },
   "dependencies": {
-    "@forge/api": "^6.0.0",
-    "@forge/kvs": "^1.0.0",
-    "@forge/resolver": "^1.6.0",
+    "@forge/api": "^8.5.0",
+    "@forge/kvs": "^2.1.2",
+    "@forge/resolver": "^2.0.2",
     "@forge/teamwork-graph": "^5.4.0"
   }
 }
