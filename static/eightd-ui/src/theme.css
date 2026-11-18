@@ -22,3 +22,6 @@ body { background: var(--ds-surface); color: var(--ds-text); font: var(--ds-font
 .ed-pareto-line { fill: none; stroke: var(--ds-border-accent-orange); stroke-width: 2; }
 .ed-pareto-text { fill: var(--ds-text); font: var(--ds-font-body-small); }
 .ed-pareto-muted { fill: var(--ds-text-subtlest); font: var(--ds-font-body-small); }
+.ed-grow { flex: 1 1 240px; }
+.ed-select { min-width: 160px; }
+.ed-cause { display: flex; flex-direction: column; gap: var(--ds-space-075, 6px); padding: var(--ds-space-100, 8px); border: 1px solid var(--ds-border, transparent); border-radius: var(--ds-border-radius, 3px); }

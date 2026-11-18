@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isLateOnD5, lateStep, paretoCauses, paretoGeometry } from '../src/lib/overview.js';
+import { isLateOnD5, lateStep, paretoCauses, paretoGeometry, overviewRow } from '../src/lib/overview.js';
 import { demoCases } from '../src/lib/seed.js';
 import { normalize, storageKey } from '../src/lib/eightd.js';
 import { overview } from '../src/services.js';
@@ -45,4 +45,13 @@ test('overview service returns only visible records with late flags and pareto',
   assert.equal(r.items.length, 2);
   assert.equal(r.items.filter((x) => x.lateOnD5).length, 1);
   assert.equal(r.pareto[0].category, 'Machine');
+});
+
+test('overview row carries the D3 containment clock and the 24h / 5d / 30d customer deadlines', () => {
+  const start = Date.parse('2026-11-01T00:00:00Z');
+  const s = { ...normalize({ steps: {} }, '5', 'QA-5'), startedAt: new Date(start).toISOString() };
+  const row = overviewRow(s, start + 60 * 3600000);
+  assert.equal(row.containment.status, 'late');
+  assert.deepEqual(row.deadlines.map((d) => d.id), ['24h', '5d', '30d']);
+  assert.deepEqual(row.deadlines.map((d) => d.late), [true, false, false]);
 });

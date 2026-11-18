@@ -6,9 +6,9 @@ import {
   buildQualityObject, referenceObjects, statusObject, pushObjects, syncConnector, makeGraphReader, loadClient, tgEnabled, BATCH,
 } from '../src/graph.js';
 import * as svc from '../src/services.js';
-import { mockIo, issue } from './mock-io.js';
+import { mockIo, issue, fillGates } from './mock-io.js';
 
-const approve = (s, id) => reducer(s, { type: 'approve', stepId: id, accountId: 'u1', at: '2026-11-18T00:00:00.000Z' });
+const approve = (s, id) => reducer(fillGates(s), { type: 'approve', stepId: id, accountId: 'u1', at: '2026-11-18T00:00:00.000Z' });
 const fakeClient = () => {
   const sent = [];
   return { sent, async setObjects({ objects, connectionId }) { sent.push({ n: objects.length, connectionId }); return { results: { accepted: objects.length, rejected: [] } }; } };

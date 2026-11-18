@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  initialState, reducer, progress, currentStep, isSafetyRelated, draft5W2H, STEPS,
+  initialState, reducer, progress, currentStep, isSafetyRelated, draft5W2H, STEPS, containmentClock, customerDeadlines,
 } from '../src/lib/eightd.js';
+import { fillGates } from './mock-io.js';
 
 const at = '2026-11-18T00:00:00.000Z';
-const approveAll = (s) => STEPS.reduce((acc, st) => reducer(acc, { type: 'approve', stepId: st.id, accountId: 'u1', at }), s);
+const approveAll = (s) => STEPS.reduce((acc, st) => reducer(fillGates(acc), { type: 'approve', stepId: st.id, accountId: 'u1', at }), s);
 
 test('initial state has eight empty, unapproved steps', () => {
   const s = initialState('10001', 'QA-1');
@@ -69,4 +70,49 @@ test('5W2H draft uses issue facts and marks missing ones unknown', () => {
   assert.equal(d.why, 'Found at final inspection.');
   assert.match(d.how, /unknown/);
   assert.match(d.note, /Approve/);
+});
+
+test('D4 approve needs a confirmed occurrence AND a confirmed escape cause; hypotheses never count', () => {
+  let s = initialState('7');
+  for (const st of ['D1', 'D2', 'D3']) s = reducer(s, { type: 'approve', stepId: st, accountId: 'u1', at });
+  const cause = (kind, status) => ({ kind, status, text: `${kind} cause`, evidence: 'measured' });
+  s = reducer(s, { type: 'setData', key: 'causes', value: [cause('occurrence', 'confirmed'), cause('escape', 'hypothesis')] });
+  assert.throws(() => reducer(s, { type: 'approve', stepId: 'D4', accountId: 'u1', at }), /confirmed escape cause/);
+  s = reducer(s, { type: 'setData', key: 'causes', value: [cause('occurrence', 'killed'), cause('escape', 'confirmed')] });
+  assert.throws(() => reducer(s, { type: 'approve', stepId: 'D4', accountId: 'u1', at }), /confirmed occurrence cause/);
+  s = reducer(s, { type: 'setData', key: 'causes', value: [cause('occurrence', 'confirmed'), cause('escape', 'confirmed'), { text: 'AI idea', status: 'bogus' }] });
+  assert.equal(s.data.causes[2].status, 'hypothesis'); // unknown status never becomes confirmed
+  s = reducer(s, { type: 'approve', stepId: 'D4', accountId: 'u1', at });
+  assert.equal(s.steps.D4.approvedBy, 'u1');
+  assert.throws(() => reducer(s, { type: 'setData', key: 'causes', value: [] }), /D4 is approved/);
+});
+
+test('D7 needs look-across and FMEA reference; D8 needs D6 before/after verification', () => {
+  let s = initialState('8');
+  for (const st of ['D1', 'D2', 'D3', 'D4', 'D5', 'D6']) s = reducer(fillGates(s), { type: 'approve', stepId: st, accountId: 'u1', at });
+  s = reducer(s, { type: 'setData', key: 'lookAcross', value: [] });
+  assert.throws(() => reducer(s, { type: 'approve', stepId: 'D7', accountId: 'u1', at }), /look-across/);
+  s = reducer(s, { type: 'setData', key: 'lookAcross', value: ['Die 4', ' '] });
+  s = reducer(s, { type: 'setData', key: 'fmeaRef', value: '' });
+  assert.deepEqual(s.data.lookAcross, ['Die 4']);
+  assert.throws(() => reducer(s, { type: 'approve', stepId: 'D7', accountId: 'u1', at }), /FMEA/);
+  s = reducer(s, { type: 'setData', key: 'fmeaRef', value: 'PFMEA line 9' });
+  s = reducer(s, { type: 'approve', stepId: 'D7', accountId: 'u1', at });
+  const noVerify = { ...s, data: { ...s.data, verification: { before: 'x', after: '' } } };
+  assert.throws(() => reducer(noVerify, { type: 'approve', stepId: 'D8', accountId: 'u1', at }), /before\/after verification/);
+  assert.equal(reducer(s, { type: 'approve', stepId: 'D8', accountId: 'u1', at }).steps.D8.approvedBy, 'u1');
+});
+
+test('D3 containment clock: on time to 24 h, at risk to 48 h, late after; stops when D3 is approved', () => {
+  const start = Date.parse('2026-11-01T00:00:00Z');
+  const s = { ...initialState('9'), startedAt: new Date(start).toISOString() };
+  const h = (n) => start + n * 3600000;
+  assert.deepEqual(containmentClock(initialState('9'), h(1)), { status: 'not-started', hours: null });
+  assert.equal(containmentClock(s, h(10)).status, 'on-time');
+  assert.equal(containmentClock(s, h(30)).status, 'at-risk');
+  assert.deepEqual(containmentClock(s, h(49)), { status: 'late', hours: 49 });
+  const done = { ...s, steps: { ...s.steps, D3: { ...s.steps.D3, approvedAt: new Date(h(20)).toISOString() } } };
+  assert.deepEqual(containmentClock(done, h(500)), { status: 'contained-on-time', hours: 20 });
+  const d = customerDeadlines(done, h(200));
+  assert.deepEqual(d.map((x) => [x.id, x.met, x.late]), [['24h', true, false], ['5d', false, true], ['30d', false, false]]);
 });

@@ -1,9 +1,9 @@
 // Pure logic for the overview page: late flags and the root-cause Pareto (plain SVG geometry).
-import { STEPS, CAUSE_CATEGORIES, currentStep, progress } from './eightd.js';
+import { STEPS, CAUSE_CATEGORIES, currentStep, progress, containmentClock, customerDeadlines } from './eightd.js';
 
 // Days after the 8D starts by which each step should be approved (common customer targets:
-// containment in 24-48 h, root cause in 10 days, permanent action in 30 days).
-export const DUE_DAYS = { D1: 1, D2: 2, D3: 2, D4: 10, D5: 30, D6: 45, D7: 60, D8: 60 };
+// containment in 24 h (late after 48 h), root cause in 5 days, permanent fix verified in 30 days).
+export const DUE_DAYS = { D1: 1, D2: 2, D3: 2, D4: 5, D5: 20, D6: 30, D7: 45, D8: 60 };
 const DAY = 86400000;
 
 export function daysOpen(state, now = Date.now()) {
@@ -24,6 +24,7 @@ export function overviewRow(state, now = Date.now()) {
   return {
     issueKey: state.issueKey, issueId: state.issueId, current: currentStep(state), ...progress(state),
     daysOpen: daysOpen(state, now), late: lateStep(state, now), lateOnD5: isLateOnD5(state, now),
+    containment: containmentClock(state, now), deadlines: customerDeadlines(state, now),
   };
 }
 

@@ -31,8 +31,19 @@ async function canEdit(issueId) {
 const Resolver = ResolverModule.default ?? ResolverModule;
 const resolver = new Resolver();
 
-resolver.define('getState', async ({ context }) => {
-  const { id, key } = context.extension.issue;
+// The work item comes from the issue panel context, or, on the full-page workspace, from the key
+// the page passes; that key is re-read as the user, so a hidden work item fails here.
+async function issueOf(context, payload) {
+  const ext = context?.extension?.issue;
+  if (ext?.id && ext?.key) return { id: String(ext.id), key: ext.key };
+  const key = String(payload?.issueKey ?? '');
+  if (!/^[A-Z][A-Z0-9_]*-\d+$/.test(key)) throw new Error('Open an 8D from a work item or the 8D list');
+  const issue = await readIssue(key);
+  return { id: String(issue.id), key: issue.key };
+}
+
+resolver.define('getState', async ({ payload, context }) => {
+  const { id, key } = await issueOf(context, payload);
   const issue = await readIssue(id);
   return { state: await loadState(id, key), safety: isSafetyRelated(issue.fields?.labels) };
 });
@@ -40,19 +51,19 @@ resolver.define('getState', async ({ context }) => {
 // One reducer action per call. Only known fields pass; the approver is always the
 // signed-in human and the timestamp is set here, never by the browser.
 resolver.define('dispatch', async ({ payload, context }) => {
-  const { id, key } = context.extension.issue;
-  const { type, stepId, field, value } = payload?.action ?? {};
-  if (!['setField', 'approve', 'reopen'].includes(type)) throw new Error(`Unknown action ${type}`);
+  const { id, key } = await issueOf(context, payload);
+  const { type, stepId, field, key: dataKey, value } = payload?.action ?? {};
+  if (!['setField', 'setData', 'approve', 'reopen'].includes(type)) throw new Error(`Unknown action ${type}`);
   if (!(await canEdit(id))) throw new Error('You need edit permission on this work item');
-  const action = { type, stepId, field, value, accountId: context.accountId, at: new Date().toISOString() };
+  const action = { type, stepId, field, key: dataKey, value, accountId: context.accountId, at: new Date().toISOString() };
   const next = reducer(await loadState(id, key), action);
   await kvs.set(storageKey(id), next);
   return { state: next };
 });
 
 // Fills D2 with a 5W2H draft; fields are only set, never approved.
-resolver.define('draftD2', async ({ context }) => {
-  const { id, key } = context.extension.issue;
+resolver.define('draftD2', async ({ payload, context }) => {
+  const { id, key } = await issueOf(context, payload);
   if (!(await canEdit(id))) throw new Error('You need edit permission on this work item');
   const issue = await readIssue(id);
   if (isSafetyRelated(issue.fields?.labels)) throw new Error(SAFETY_MESSAGE);
@@ -118,17 +129,15 @@ async function graphReader() {
   });
 }
 
-const issueOf = (context) => context.extension.issue;
-
-resolver.define('findSimilar', async ({ context }) => svc.findSimilar(await makeIo(), issueOf(context).key));
-resolver.define('scaffoldFiveWhy', async ({ context }) => svc.scaffoldWhy(await makeIo(), issueOf(context).key));
+resolver.define('findSimilar', async ({ payload, context }) => svc.findSimilar(await makeIo(), (await issueOf(context, payload)).key));
+resolver.define('scaffoldFiveWhy', async ({ payload, context }) => svc.scaffoldWhy(await makeIo(), (await issueOf(context, payload)).key));
 resolver.define('saveFiveWhy', async ({ payload, context }) => {
-  const { id, key } = issueOf(context);
+  const { id, key } = await issueOf(context, payload);
   return { state: await svc.saveFiveWhy(await makeIo(), id, key, String(payload?.text ?? '')) };
 });
-resolver.define('previewCorrectiveActions', async ({ context }) => svc.previewCorrectiveActions(await makeIo(), issueOf(context).key));
-resolver.define('createCorrectiveActions', async ({ context }) => svc.createCorrectiveActions(await makeIo(), issueOf(context).key));
-resolver.define('previewReport', async ({ context }) => svc.previewReport(await makeIo(), issueOf(context).key));
+resolver.define('previewCorrectiveActions', async ({ payload, context }) => svc.previewCorrectiveActions(await makeIo(), (await issueOf(context, payload)).key));
+resolver.define('createCorrectiveActions', async ({ payload, context }) => svc.createCorrectiveActions(await makeIo(), (await issueOf(context, payload)).key));
+resolver.define('previewReport', async ({ payload, context }) => svc.previewReport(await makeIo(), (await issueOf(context, payload)).key));
 resolver.define('listSpaces', async () => {
   const io = await makeIo();
   const res = await io.confluence('GET', '/wiki/api/v2/spaces?limit=50&type=global').catch(() => ({ results: [] }));
@@ -136,7 +145,7 @@ resolver.define('listSpaces', async () => {
 });
 resolver.define('isAdmin', async () => ({ admin: await svc.hasPermission(await makeIo(), 'ADMINISTER') }));
 resolver.define('seedDemo', async ({ payload }) => svc.seedDemo(await makeIo(), { projectKey: payload?.projectKey, spaceId: payload?.spaceId }));
-resolver.define('generateReport', async ({ payload, context }) => svc.generateReport(await makeIo(), issueOf(context).key, payload?.spaceId));
+resolver.define('generateReport', async ({ payload, context }) => svc.generateReport(await makeIo(), (await issueOf(context, payload)).key, payload?.spaceId));
 
 export const handler = resolver.getDefinitions();
 

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { initialState, reducer, STEPS } from '../src/lib/eightd.js';
 import * as svc from '../src/services.js';
-import { mockIo, issue } from './mock-io.js';
+import { mockIo, issue, fillGates } from './mock-io.js';
 
 const at = '2026-11-18T00:00:00.000Z';
 const SECRET = 'SECRET-CAUSE: restricted supplier deviation';
@@ -13,7 +13,7 @@ const approved = (id, key, fiveWhys, upTo = 'D8') => {
   let s = reducer(initialState(id, key), { type: 'setField', stepId: 'D4', field: 'fiveWhys', value: fiveWhys });
   s = reducer(s, { type: 'setField', stepId: 'D4', field: 'causeCategory', value: 'Material' });
   s = reducer(s, { type: 'setField', stepId: 'D5', field: 'actions', value: `${SECRET} | owner: x` });
-  for (const st of STEPS.slice(0, STEPS.findIndex((x) => x.id === upTo) + 1)) s = reducer(s, { type: 'approve', stepId: st.id, accountId: 'u9', at });
+  for (const st of STEPS.slice(0, STEPS.findIndex((x) => x.id === upTo) + 1)) s = reducer(fillGates(s), { type: 'approve', stepId: st.id, accountId: 'u9', at });
   return s;
 };
 

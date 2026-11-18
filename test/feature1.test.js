@@ -6,11 +6,11 @@ import { scaffoldFiveWhy, pickWhy, formatFiveWhy, WHY_LEVELS } from '../src/lib/
 import { correctiveActionDrafts, buildIssuePayload } from '../src/lib/actions.js';
 import { buildReport } from '../src/lib/report.js';
 import * as svc from '../src/services.js';
-import { mockIo, issue } from './mock-io.js';
+import { mockIo, issue, fillGates } from './mock-io.js';
 
 const at = '2026-11-18T00:00:00.000Z';
 const set = (s, stepId, field, value) => reducer(s, { type: 'setField', stepId, field, value });
-const approve = (s, stepId) => reducer(s, { type: 'approve', stepId, accountId: 'u1', at });
+const approve = (s, stepId) => reducer(fillGates(s), { type: 'approve', stepId, accountId: 'u1', at });
 const approveTo = (s, last) => STEPS.slice(0, STEPS.findIndex((x) => x.id === last) + 1).reduce((a, x) => approve(a, x.id), s);
 const CHAIN = '1. Burr on bracket edge\n2. Punch die worn\n3. Die change interval too long\n4. Interval not tied to stroke count\n5. PM plan never reviewed';
 

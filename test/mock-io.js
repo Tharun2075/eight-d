@@ -1,6 +1,23 @@
 // In-memory stand-in for the `io` object (see src/services.js). Jira search only returns work
 // items whose project is in `visibleProjects`, the way Jira filters search for a restricted user.
-import { storageKey } from '../src/lib/eightd.js';
+import { storageKey, reducer, DATA_STEP } from '../src/lib/eightd.js';
+
+// Minimum structured data the D4/D7/D8 approve gates need; filled only while the owning step is open.
+export const GATE_DATA = {
+  causes: [
+    { id: 'c1', kind: 'occurrence', text: 'Punch die worn', status: 'confirmed', evidence: 'Die radius measured out of spec' },
+    { id: 'c2', kind: 'escape', text: 'Visual check misses edge burr', status: 'confirmed', evidence: 'Seeded parts: 2 of 10 caught' },
+  ],
+  verification: { before: '6 of 250 defective', after: '0 of 5 lots defective' },
+  lookAcross: ['Die PR-2', 'Die PR-4'],
+  fmeaRef: 'PFMEA-200 line 12; control plan CP-200 rev D',
+};
+export function fillGates(s) {
+  for (const key of Object.keys(GATE_DATA)) {
+    if (!s.steps[DATA_STEP[key]].approvedBy) s = reducer(s, { type: 'setData', key, value: GATE_DATA[key] });
+  }
+  return s;
+}
 
 export function mockIo({ issues = [], pages = [], visibleProjects = null, perms = { EDIT_ISSUES: true }, users = {}, graph } = {}) {
   const store = new Map();
