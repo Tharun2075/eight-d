@@ -63,3 +63,76 @@ test('seedDemo: admin creates 9 work items and 6 labelled root-cause pages; reru
   assert.deepEqual(again.created, { issues: 0, pages: 0 });
   assert.equal(io.calls.slice(before).filter((c) => c.method === 'POST' && !c.path.includes('mypermissions')).length, 0);
 });
+
+// Wraps the mock Confluence so a test can answer some calls itself (status errors like the live site).
+function withConfluence(io, handler) {
+  const base = io.confluence;
+  io.confluence = async (method, path, body) => {
+    const out = await handler(method, path, body);
+    if (out !== undefined) { io.calls.push({ product: 'confluence', method, path, body }); return out; }
+    return base(method, path, body);
+  };
+  return io;
+}
+const httpError = (status, msg) => Object.assign(new Error(`confluence returned ${status}: ${msg}`), { status });
+
+test('seedDemo: page create 400 "already exists" reuses the page found by title', async () => {
+  const titles = new Map();
+  const io = withConfluence(mockIo({ perms: { ADMINISTER: true } }), (method, path, body) => {
+    if (method === 'POST' && path === '/wiki/api/v2/pages') {
+      titles.set(body.title, `9${titles.size}`);
+      throw httpError(400, 'A page with this title already exists');
+    }
+    if (method === 'GET' && path.startsWith('/wiki/api/v2/spaces/7/pages?title=')) {
+      const title = decodeURIComponent(path.split('title=')[1].split('&')[0]);
+      return { results: [{ id: titles.get(title), title }] };
+    }
+    return undefined;
+  });
+  const r = await svc.seedDemo(io, { projectKey: 'QA', spaceId: '7' });
+  assert.equal(r.more, false);
+  assert.deepEqual(r.created, { issues: 9, pages: 0 });
+  const saved = await io.store.get('seed:demo');
+  const ids = Object.values(saved.cases).filter((c) => c.pageId).map((c) => c.pageId);
+  assert.deepEqual(ids, [...titles.values()]);
+  assert.equal(ids.length, 6);
+  assert.equal(io.calls.filter((c) => c.path.endsWith('/label')).length, 6);
+});
+
+test('seedDemo: out of time returns more:true, the next call finishes with no duplicates', async () => {
+  const io = mockIo({ perms: { ADMINISTER: true } });
+  let t = 0;
+  const clock = () => { t += 1000; return t; }; // every check moves 1 s
+  const first = await svc.seedDemo(io, { projectKey: 'QA', spaceId: '7', clock, budgetMs: 3500 });
+  assert.equal(first.more, true);
+  assert.ok(first.done > 0 && first.done < 9, `done ${first.done}`);
+  t = 0;
+  const second = await svc.seedDemo(io, { projectKey: 'QA', spaceId: '7', clock: () => 0 });
+  assert.equal(second.more, false);
+  assert.equal(second.done, 9);
+  assert.equal(first.created.issues + second.created.issues, 9);
+  assert.equal(first.created.pages + second.created.pages, 6);
+  assert.equal(io.calls.filter((c) => c.method === 'POST' && c.path === '/rest/api/3/issue').length, 9);
+  assert.equal(io.calls.filter((c) => c.method === 'POST' && c.path === '/wiki/api/v2/pages').length, 6);
+});
+
+test('seedDemo: label 401 still saves pageId, shows a warning, and a rerun adds only the labels', async () => {
+  let deny = true;
+  const io = withConfluence(mockIo({ perms: { ADMINISTER: true } }), (method, path) => {
+    if (deny && path.endsWith('/label')) throw httpError(401, 'scope does not match');
+    return undefined;
+  });
+  const r = await svc.seedDemo(io, { projectKey: 'QA', spaceId: '7' });
+  assert.deepEqual(r.created, { issues: 9, pages: 6 });
+  assert.match(r.warning, /labels could not be added.*401/);
+  const saved = await io.store.get('seed:demo');
+  assert.equal(Object.values(saved.cases).filter((c) => c.pageId).length, 6);
+  deny = false;
+  const before = io.calls.length;
+  const again = await svc.seedDemo(io, { projectKey: 'QA', spaceId: '7' });
+  assert.deepEqual(again.created, { issues: 0, pages: 0 });
+  assert.equal(again.warning, null);
+  const posts = io.calls.slice(before).filter((c) => c.method === 'POST' && !c.path.includes('mypermissions'));
+  assert.equal(posts.length, 6);
+  assert.ok(posts.every((c) => c.path.endsWith('/label')));
+});
