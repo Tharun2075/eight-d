@@ -191,7 +191,6 @@ permissions:
     - storage:app
     - write:object:jira
     - read:object:jira
-    - delete:object:jira
 app:
   runtime:
     name: nodejs24.x

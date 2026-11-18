@@ -50,7 +50,7 @@ Eight-D is an assistant. It never decides anything on its own:
 - **Roles:** the customer is the Data Fiduciary (data controller) for the
   content of their work items and 8D reports. Eight-D (THATCHED Ltd) acts only
   as a processor, on the customer's instructions, inside Forge.
-- **Scopes:** `read:jira-work`, `storage:app`, and `read/write/delete:object:jira`
+- **Scopes:** `read:jira-work`, `storage:app`, and `read/write:object:jira`
   for the Teamwork Graph connector.
 
 ## Licence
