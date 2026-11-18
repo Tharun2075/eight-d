@@ -256,7 +256,7 @@ function SeedCard() {
   return (
     <section className="ed-card" aria-label="Demo data">
       <h4>Demo data (admins only)</h4>
-      <p className="ed-muted">Adds 6 closed 8Ds and 3 open ones for synthetic parts. Safe to press again.</p>
+      <p className="ed-muted">Adds 6 closed 8Ds and 3 open ones for synthetic parts, including the BR-4417 bend-crack case worked through to D6. Safe to press again.</p>
       <div className="ed-row">
         <Textfield aria-label="Project key" placeholder="Project key" width="small" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} />
         <div style={{ minWidth: 220 }}>

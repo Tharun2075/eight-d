@@ -4,6 +4,7 @@ import { STEPS } from './eightd.js';
 
 export const DEMO_LABEL = 'eightd-demo';
 export const PART_FAMILY = 'BRKT-200';
+export const HERO_PART = 'BR-4417';
 export const MACHINES = [
   { id: 'PR-3', name: 'Press PR-3', label: 'machine-pr3' },
   { id: 'LC-1', name: 'Laser cell LC-1', label: 'machine-lc1' },
@@ -13,6 +14,7 @@ export const LOTS = [
   { id: 'LOT-2609-A', supplier: 'Supplier A (coil steel)', label: 'lot-2609a' },
   { id: 'LOT-2610-B', supplier: 'Supplier B (fasteners)', label: 'lot-2610b' },
   { id: 'LOT-2611-A', supplier: 'Supplier A (coil steel)', label: 'lot-2611a' },
+  { id: 'L-2291', supplier: 'Northfield Stamping', label: 'lot-l2291' },
 ];
 
 const DAY = 86400000;
@@ -62,10 +64,108 @@ function fieldsFor(c, machine, lot) {
   };
 }
 
-// Builds the 8 work item specs with their stored 8D state (all synthetic). `now` is a timestamp.
+// Structured data (IS / IS NOT, causes, verification, look-across) so closed cases pass every gate.
+function dataFor(c, machine, lot) {
+  const whys = c.whys ?? [];
+  return {
+    isIsNot: [
+      { dimension: 'What', is: c.summary, isNot: 'Other part families' },
+      { dimension: 'Where', is: machine.name, isNot: 'Other cells' },
+      { dimension: 'When', is: `Parts from ${lot.id}`, isNot: 'Earlier lots' },
+      { dimension: 'How many', is: '40 parts', isNot: 'Whole lot' },
+    ],
+    causes: [
+      { id: 'c1', kind: 'occurrence', text: whys[whys.length - 1] ?? '', status: 'confirmed', evidence: whys.slice(0, 3).join('; ') },
+      { id: 'c2', kind: 'escape', text: 'Final inspection sampling did not cover the feature', status: 'confirmed', evidence: 'Known-bad parts run through the check' },
+    ],
+    verification: { before: '40 defective parts in one lot', after: 'Zero defects in 30 days' },
+    lookAcross: ['Other cells running the same tooling', 'Sister part families'],
+    fmeaRef: `PFMEA ${PART_FAMILY}, control plan updated`,
+  };
+}
+
+// The hero case: BR-4417 rev C bend cracks from supplier lot L-2291, worked through to D6.
+// Steps D1-D6 are approved; D7 is drafted with its look-across and FMEA filled, ready for the reviewer.
+const HERO = {
+  summary: 'Cracks on bend 2 of BR-4417 rev C, lot L-2291 (Northfield Stamping)',
+  machine: 'PR-3', lot: 'L-2291', cause: 'Machine', daysAgo: 9,
+  // Hours after the start at which each step was approved (D3 inside the 24 h target).
+  approvedAfterH: { D1: 2, D2: 6, D3: 20, D4: 72, D5: 96, D6: 192 },
+  fields: {
+    D1: { roles: 'Champion: Supplier quality engineer. Members: Northfield Stamping quality lead, press 3 tool setter, OEM incoming inspector.', champion: 'Supplier quality engineer' },
+    D2: {
+      what: 'Crack on the outer radius of bend 2', where: 'Northfield Stamping, press 3; found at OEM incoming inspection',
+      when: 'Lot L-2291, first OEM incoming check', who: 'OEM incoming inspection',
+      why: 'Bracket BR-4417 rev C carries a load; a crack can grow in service', how: 'Visual check, then dye-penetrant on the sample',
+      howMany: '6 of 250 sampled cracked; 1,800 pcs shipped in L-2291',
+    },
+    D3: {
+      actions: 'Quarantine 640 pcs at Northfield Stamping and 310 pcs at the OEM; 100% dye-penetrant sort of all stock; 41 pcs scrapped',
+      verification: 'Every sorted box tagged; no cracked part found in the next 3 shipments',
+    },
+    D4: {
+      fiveWhys: ['1. Bend 2 cracks on the outer radius', '2. Press 3 die radius is 0.9 mm, minimum is 1.5 mm', '3. The die radius wore down unnoticed', '4. No die-wear check at tool change', '5. The control plan has no die-wear interval'].join('\n'),
+      causeCategory: 'Machine', escapePoint: 'End-of-line visual check on 1 in 50 parts',
+    },
+    D5: {
+      actions: 'Rework the press 3 die radius to 1.5 mm | owner: Tool room lead\nDie-wear gauge at every tool change | owner: Tool setter\nDye-penetrant / eddy-current check at end of line | owner: Quality lead',
+      evidence: 'Trial lot of 500 pcs after die rework: 0 cracks under dye-penetrant',
+    },
+    D6: {
+      implementation: 'Die reworked and gauged; wear gauge and end-of-line check live on all shifts',
+      validation: '5 consecutive lots with 0 cracks; 60-day PPM trend running',
+    },
+    D7: {
+      systemChanges: 'Control plan gets a die-wear interval; FMEA line "bend radius wear" added',
+      lessons: 'Look-across to the 11 other bending dies at Northfield Stamping',
+    },
+  },
+  data: {
+    isIsNot: [
+      { dimension: 'What', is: 'Crack on outer radius of bend 2', isNot: 'Bend 1, flat areas, holes' },
+      { dimension: 'Where', is: 'Press 3', isNot: 'Press 1 and press 2' },
+      { dimension: 'When', is: 'Lot L-2291', isNot: 'Lots L-2288 and L-2290' },
+      { dimension: 'How many', is: '6 of 250 sampled', isNot: 'Whole lot' },
+    ],
+    causes: [
+      { id: 'h1', kind: 'occurrence', text: 'Coil hardness too high', status: 'killed', evidence: 'Tensile and hardness certificates and retest in spec' },
+      { id: 'h2', kind: 'occurrence', text: 'Press 3 die radius 0.9 mm against a 1.5 mm minimum', status: 'confirmed', evidence: 'Radius gauge on the die; cracks only on press 3 parts' },
+      { id: 'h3', kind: 'occurrence', text: 'Operator set the wrong feed length', status: 'killed', evidence: 'Setup sheet matches; trial run at set feed gave no crack' },
+      { id: 'h4', kind: 'escape', text: 'Visual check on 1 in 50 parts misses fine cracks', status: 'confirmed', evidence: 'Visual check found only 2 of 10 known-cracked parts' },
+    ],
+    verification: { before: '6 of 250 sampled cracked (24,000 PPM)', after: '5 consecutive lots, 0 cracks; 60-day PPM trend running' },
+    lookAcross: ['11 other bending dies at Northfield Stamping: radius gauged', 'Press 1 and press 2 dies for BR-4417: in spec'],
+    fmeaRef: 'PFMEA BR-4417 line "bend radius wear"; control plan die-wear interval added',
+  },
+};
+
+function heroCase(now) {
+  const machine = MACHINES.find((m) => m.id === HERO.machine);
+  const lot = LOTS.find((l) => l.id === HERO.lot);
+  const start = now - HERO.daysAgo * DAY;
+  const steps = {};
+  for (const s of STEPS) {
+    const h = HERO.approvedAfterH[s.id];
+    steps[s.id] = {
+      fields: HERO.fields[s.id] ?? Object.fromEntries(s.fields.map((f) => [f, ''])),
+      approvedBy: h === undefined ? null : 'demo-seed',
+      approvedAt: h === undefined ? null : new Date(start + h * 3600000).toISOString(),
+    };
+  }
+  return {
+    ref: 'demo-hero',
+    summary: HERO.summary,
+    labels: [HERO_PART, DEMO_LABEL, machine.label, lot.label],
+    closed: false,
+    state: { steps, data: HERO.data, closed: false, startedAt: new Date(start).toISOString(), updatedAt: iso(now, 0) },
+    rootCause: null,
+  };
+}
+
+// Builds the 9 work item specs with their stored 8D state (all synthetic). `now` is a timestamp.
 export function demoCases(now = Date.now()) {
   const closed = CASES.map(([summary, m, l, cause, whys, action, daysAgo]) => ({ summary, machine: m, lot: l, cause, whys, action, daysAgo, upTo: 'D8' }));
-  return [...closed, ...OPEN].map((c, idx) => {
+  const rest = [...closed, ...OPEN].map((c, idx) => {
     const machine = MACHINES.find((m) => m.id === c.machine);
     const lot = LOTS.find((l) => l.id === c.lot);
     const fields = fieldsFor(c, machine, lot);
@@ -85,10 +185,11 @@ export function demoCases(now = Date.now()) {
       summary: c.summary,
       labels: [PART_FAMILY, DEMO_LABEL, machine.label, lot.label],
       closed: c.upTo === 'D8',
-      state: { steps, closed: c.upTo === 'D8', startedAt: iso(now, c.daysAgo), updatedAt: iso(now, 0) },
+      state: { steps, ...(c.upTo === 'D8' ? { data: dataFor(c, machine, lot) } : {}), closed: c.upTo === 'D8', startedAt: iso(now, c.daysAgo), updatedAt: iso(now, 0) },
       rootCause: c.upTo === 'D8' ? { whys: c.whys, cause: c.cause, machine, lot } : null,
     };
   });
+  return [...rest, heroCase(now)];
 }
 
 // Confluence storage body for a closed case's root-cause page.

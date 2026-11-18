@@ -21,7 +21,7 @@ test('late on D5: open case waiting on D5 past 30 days; fresh case is not', () =
 test('pareto counts approved D4 causes only, sorted, cumulative ends at 100', () => {
   const states = cases.map((c) => normalize(c.state));
   const rows = paretoCauses(states);
-  assert.equal(rows.reduce((a, r) => a + r.count, 0), 7); // 6 closed + the open case approved to D4
+  assert.equal(rows.reduce((a, r) => a + r.count, 0), 8); // 6 closed + the open case approved to D4 + the hero
   assert.equal(rows[0].category, 'Machine');
   for (let i = 1; i < rows.length; i++) assert.ok(rows[i - 1].count >= rows[i].count);
   assert.equal(rows.at(-1).cumulative, 100);
@@ -42,7 +42,7 @@ test('overview service returns only visible records with late flags and pareto',
   const io = mockIo({ issues });
   cases.forEach((c, i) => io.store.set(storageKey(String(100 + i)), { ...c.state, issueId: String(100 + i), issueKey: `QA-${i + 1}` }));
   const r = await overview(io, NOW);
-  assert.equal(r.items.length, 2);
+  assert.equal(r.items.length, 3);
   assert.equal(r.items.filter((x) => x.lateOnD5).length, 1);
   assert.equal(r.pareto[0].category, 'Machine');
 });
