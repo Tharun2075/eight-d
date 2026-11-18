@@ -25,13 +25,21 @@ export function complaintAdf(paragraphs) {
   return { type: 'doc', version: 1, content: paragraphs.map((text) => ({ type: 'paragraph', content: [{ type: 'text', text }] })) };
 }
 
-function complaintFor(c, lot, now) {
+// The complaint text ends with labelled 5W2H lines, as a customer quality portal exports them,
+// so 8D Coach drafts every D2 field from the work item alone.
+function complaintFor(c, machine, lot, now) {
   const date = iso(now, c.daysAgo).slice(0, 10);
   const count = c.count ?? 40;
   return complaintAdf([
     `Customer complaint received ${date} from the assembly customer's incoming quality team: ${c.summary.charAt(0).toLowerCase()}${c.summary.slice(1)}.`,
     `They found ${count} affected parts from lot ${lot.id} (${PART_FAMILY}, supplied by ${lot.supplier}) and are holding the rest of the delivery.`,
     `They ask for containment within 24 hours, a root cause within 5 days and a closed 8D within 30 days.`,
+    `Where found: assembly customer's incoming inspection; lot ${lot.id}, made on ${machine.name} at ${lot.supplier}`,
+    `When found: ${date}`,
+    `Customer: assembly customer, incoming quality team`,
+    `How detected: visual and gauge check of the incoming sample`,
+    `Quantity: ${count} parts from lot ${lot.id}`,
+    `Impact: the customer is holding the rest of the delivery, so their ${PART_FAMILY} assembly runs on reduced stock until good parts arrive`,
   ]);
 }
 
@@ -175,6 +183,12 @@ function heroCase(now) {
       `Their inspector checked 250 parts from lot ${lot.id} and found 6 cracked under dye-penetrant; 1,800 pieces of the lot were already shipped.`,
       `The bracket carries a load, so they class this as a safety-relevant defect and have stopped using lot ${lot.id} on their line.`,
       `They ask ${lot.supplier} for containment within 24 hours, a confirmed root cause within 5 days and a closed 8D within 30 days.`,
+      `Where found: OEM incoming inspection; lot ${lot.id}, bend 2 formed on ${machine.name} at ${lot.supplier}`,
+      `When found: ${iso(now, HERO.daysAgo).slice(0, 10)}`,
+      `Customer: OEM incoming inspection (inspector on the receiving dock)`,
+      `How detected: dye-penetrant check of a 250-part sample`,
+      `Quantity: 6 of 250 sampled parts cracked; 1,800 pieces of lot ${lot.id} already shipped`,
+      `Impact: the bracket carries a load, so the OEM classes it as safety-relevant and has stopped using lot ${lot.id} on their line`,
     ]),
     labels: [HERO_PART, DEMO_LABEL, machine.label, lot.label],
     closed: false,
@@ -204,7 +218,7 @@ export function demoCases(now = Date.now()) {
     return {
       ref: `demo-${idx + 1}`,
       summary: c.summary,
-      description: complaintFor(c, lot, now),
+      description: complaintFor(c, machine, lot, now),
       labels: [PART_FAMILY, DEMO_LABEL, machine.label, lot.label],
       closed: c.upTo === 'D8',
       state: { steps, ...(c.upTo === 'D8' ? { data: dataFor(c, machine, lot) } : {}), closed: c.upTo === 'D8', startedAt: iso(now, c.daysAgo), updatedAt: iso(now, 0) },

@@ -4,6 +4,7 @@ import {
   initialState, reducer, progress, currentStep, isSafetyRelated, draft5W2H, STEPS, containmentClock, customerDeadlines,
 } from '../src/lib/eightd.js';
 import { fillGates } from './mock-io.js';
+import { demoCases } from '../src/lib/seed.js';
 
 const at = '2026-11-18T00:00:00.000Z';
 const approveAll = (s) => STEPS.reduce((acc, st) => reducer(fillGates(acc), { type: 'approve', stepId: st.id, accountId: 'u1', at }), s);
@@ -67,9 +68,48 @@ test('5W2H draft uses issue facts and marks missing ones unknown', () => {
   } });
   assert.equal(d.what, 'Burr on bracket 7731');
   assert.equal(d.when, 'Reported 2026-11-10');
-  assert.equal(d.why, 'Found at final inspection.');
-  assert.match(d.how, /unknown/);
+  assert.match(d.where, /final inspection/i);
+  assert.match(d.why, /unknown/);
+  assert.ok(d.missing.includes('why'));
   assert.match(d.note, /Approve/);
+});
+
+const para = (text) => ({ type: 'paragraph', content: [{ type: 'text', text }] });
+
+test('5W2H: labelled lines in an ADF description fill all 7 fields', () => {
+  const d = draft5W2H({ fields: { summary: 'Cracked bracket', created: '2026-11-10T08:00:00.000+0000', description: { type: 'doc', content: [
+    para('What: crack on bend 2 of bracket BR-1'), para('Where found: customer incoming inspection, lot L-1'),
+    para('When found: 2026-11-09'), para('Customer: OEM receiving dock'), para('How detected: dye-penetrant check'),
+    para('Quantity: 6 parts'), para('Impact: the OEM stopped their line'),
+  ] } } });
+  assert.deepEqual(d.missing, []);
+  assert.equal(d.what, 'crack on bend 2 of bracket BR-1');
+  assert.equal(d.where, 'customer incoming inspection, lot L-1');
+  assert.equal(d.when, '2026-11-09');
+  assert.equal(d.who, 'OEM receiving dock');
+  assert.equal(d.how, 'dye-penetrant check');
+  assert.equal(d.howMany, '6 parts');
+  assert.equal(d.why, 'the OEM stopped their line');
+});
+
+test('5W2H: free text gives how and how many', () => {
+  const d = draft5W2H({ fields: { summary: 'Cracks', created: '2026-11-10', description: 'During incoming inspection we found 37 parts cracked' } });
+  assert.match(d.how, /incoming inspection/i);
+  assert.match(d.howMany, /^37 parts/);
+});
+
+test('5W2H: empty description lists the 5 missing fields by name', () => {
+  const d = draft5W2H({ fields: { summary: 'Cracks', created: '2026-11-10', description: null } });
+  assert.equal(d.missing.length, 5);
+  assert.equal(d.missingNames.length, 5);
+  for (const f of d.missing) assert.equal(d[f], 'unknown - please fill in');
+});
+
+test('5W2H: every seeded case drafts with nothing missing', () => {
+  for (const c of demoCases()) {
+    const d = draft5W2H({ fields: { summary: c.summary, created: '2026-11-10', description: c.description } });
+    assert.deepEqual(d.missing, [], c.ref);
+  }
 });
 
 test('D4 approve needs a confirmed occurrence AND a confirmed escape cause; hypotheses never count', () => {

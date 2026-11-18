@@ -194,20 +194,83 @@ export function reducer(state, action) {
   }
 }
 
-// 5W2H draft of the D2 problem statement from Jira issue fields. A draft only:
-// unknown facts stay "unknown" so the reviewer sees what is missing.
+// 5W2H draft of the D2 problem statement from the Jira work item. A draft only:
+// labelled complaint lines ("Where found: ...") win, then simple text patterns; facts that are
+// still not found stay "unknown - please fill in" and are listed by name in `missing`.
+export const UNKNOWN = 'unknown - please fill in';
+export const FIELD_NAMES = {
+  what: 'What (defect)', where: 'Where found', when: 'When found', who: 'Who detected it',
+  why: 'Why it matters (impact)', how: 'How detected', howMany: 'How many',
+};
+// Label words per field, checked case-insensitively at the start of a line ("Qty - 40 pcs" works too).
+const LABELS = [
+  ['howMany', /^(how many|quantity|qty|amount|affected( parts| quantity)?|count|number of parts|defect(ive)? quantity)$/],
+  ['how', /^(how|how detected|how found|detected how|detection( method)?|method of detection|found by)$/],
+  ['where', /^(where|where found|where detected|location|found at|plant|line|place)$/],
+  ['when', /^(when|when found|when detected|date found|date detected|detected on|found on|date)$/],
+  ['who', /^(who|who found|who detected|detected by|reported by|customer|complainant|reporter)$/],
+  ['why', /^(why|why it matters|impact|customer impact|severity|risk|effect|consequence)$/],
+  ['what', /^(what|defect|problem|nonconformance|non-conformance|issue|failure|symptom)$/],
+];
+const fieldOfLabel = (label) => LABELS.find(([, re]) => re.test(label))?.[0];
+
+const sentences = (text) => text.split(/\n+/).flatMap((l) => l.split(/(?<=[.!?])\s+(?=[A-Z])/)).map((x) => x.trim()).filter(Boolean);
+const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+const trimEnd = (x) => x.replace(/[\s.;,]+$/, '');
+
+// Labelled lines "Label: value" from the description text.
+function labelled(text) {
+  const out = {};
+  for (const line of text.split('\n')) {
+    const m = /^\s*[-*•]?\s*([A-Za-z][A-Za-z -]{0,30}?)\s*[:\u2013\u2014]\s*(.+)$/.exec(line) ?? /^\s*[-*•]?\s*([A-Za-z][A-Za-z ]{0,30}?)\s+-\s+(.+)$/.exec(line);
+    if (!m) continue;
+    const field = fieldOfLabel(m[1].trim().toLowerCase());
+    if (field && !out[field]) out[field] = trimEnd(m[2].trim());
+  }
+  return out;
+}
+
+// Free-text patterns for complaints without labels.
+function patterns(text) {
+  const out = {};
+  const qty = /(\d[\d,]*)\s+(?:(?:cracked|affected|defective|bad|faulty|rejected|nonconforming|damaged|bent|scratched)\s+)?(parts?|pcs|pieces?|units?)\b/i.exec(text)
+    ?? /\bfound (\d[\d,]*) (cracked|affected|defective|faulty|rejected|damaged)\b/i.exec(text);
+  if (qty) out.howMany = `${qty[1]} ${qty[2]}`;
+  const how = /\b(?:during|detected by|detected at|found by|found during)\s+(?:the\s+|an?\s+|our\s+|their\s+)?([a-z][a-z -]{2,40}?(?:inspection|check|test|audit|testing|measurement|gauging|assembly))\b/i.exec(text)
+    ?? /\b(?:under|with|by)\s+((?:dye[- ]penetrant|visual|gauge|CMM|x-ray|leak|pull|torque|hardness)[a-z -]{0,25}?(?:check|test|inspection|gauging)?)\b/i.exec(text);
+  if (how) out.how = cap(how[1].trim());
+  const ids = [...new Set((text.match(/\b(?:lot|line|press|batch|cell)\s+[A-Z0-9][A-Z0-9-]*\d\b/gi) ?? []).map((x) => x.replace(/^\w+/, (w) => w.toLowerCase())))];
+  const found = /\b(?:found at|detected at)\s+(?:the\s+)?([^,.;]{3,60})/i.exec(text);
+  if (found || ids.length) out.where = [found && cap(found[1].trim()), ids.join(', ')].filter(Boolean).join('; ');
+  const who = /\bfrom (?:the |our |their )?([^,.:;]{3,60}?(?:inspection|quality team|quality|customer|plant|team))\b/i.exec(text)
+    ?? /\b(incoming inspection|final inspection|customer|in-process check)\b/i.exec(text);
+  if (who) out.who = cap(who[1].trim());
+  const impact = sentences(text).find((x) => /\b(safety|impact|risk|line stop|stopped|recall|warranty|cannot be used|held|holding|scrap|carries a load|downtime)\b/i.test(x));
+  if (impact) out.why = trimEnd(impact).slice(0, 300);
+  return out;
+}
+
 export function draft5W2H(issue) {
   const f = issue?.fields ?? {};
-  const unknown = 'unknown - please fill in';
   const text = typeof f.description === 'string' ? f.description : adfToText(f.description);
+  const lab = labelled(text);
+  const pat = patterns(text);
+  const fallback = {
+    what: f.summary,
+    where: f.components?.map((c) => c.name).join(', '),
+    when: f.created ? `Reported ${f.created.slice(0, 10)}` : '',
+  };
+  const draft = {};
+  const missing = [];
+  for (const k of Object.keys(FIELD_NAMES)) {
+    const v = lab[k] || pat[k] || fallback[k];
+    draft[k] = v ? String(v) : UNKNOWN;
+    if (!v) missing.push(k);
+  }
   return {
-    what: f.summary || unknown,
-    where: f.components?.map((c) => c.name).join(', ') || unknown,
-    when: f.created ? `Reported ${f.created.slice(0, 10)}` : unknown,
-    who: 'Detected by: ' + (f.reporter ? 'the reporting role on this work item' : unknown),
-    why: text ? text.slice(0, 500) : unknown,
-    how: unknown,
-    howMany: unknown,
+    ...draft,
+    missing,
+    missingNames: missing.map((k) => FIELD_NAMES[k]),
     note: 'Draft only. Review every line and press Approve on D2 when it is right.',
   };
 }
@@ -215,5 +278,8 @@ export function draft5W2H(issue) {
 function adfToText(node) {
   if (!node || typeof node !== 'object') return '';
   if (node.type === 'text') return node.text ?? '';
-  return (node.content ?? []).map(adfToText).join(node.type === 'paragraph' ? '\n' : '');
+  if (node.type === 'hardBreak') return '\n';
+  // Inline children of a paragraph or heading join as they are; block nodes each get their own line.
+  const inline = node.type === 'paragraph' || node.type === 'heading';
+  return (node.content ?? []).map(adfToText).join(inline ? '' : '\n');
 }

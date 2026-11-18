@@ -89,7 +89,7 @@ function Overview({ open }) {
     cells: [
       { key: 'k', content: (
         <div className="ed-item">
-          {i.issueKey ? <Button appearance="link" spacing="none" onClick={() => open(i.issueKey)}>{i.issueKey}</Button> : i.issueId}
+          {i.issueKey ? <a href="#" className="ed-key" onClick={(e) => { e.preventDefault(); open(i.issueKey); }}>{i.issueKey}</a> : i.issueId}
           {i.summary && <span className="ed-summary" title={i.summary}>{i.summary}</span>}
         </div>
       ) },
@@ -97,14 +97,21 @@ function Overview({ open }) {
       { key: 'c', content: i.containment ? <ContainmentClock clock={i.containment} /> : '' },
       { key: 'l', content: <Deadlines list={i.deadlines ?? []} /> },
       { key: 'd', content: i.daysOpen ?? '' },
-      { key: 'p', content: `${i.percent}%` },
+      { key: 'p', content: (
+        <div className="ed-pct" title={`${i.percent}% of D-steps approved`}>
+          <div className="ed-progress"><div style={{ width: `${i.percent}%` }} /></div>
+          <span>{i.percent}%</span>
+        </div>
+      ) },
     ],
   }));
   return (
     <div className="ed-page ed-col">
       <h1>Open 8Ds</h1>
-      <DynamicTable head={head} rows={rows}
-        emptyView={<EmptyState header="No open 8D reports" description="Open a work item and start its 8D, or load the demo data below." />} />
+      <div className="ed-table">
+        <DynamicTable head={head} rows={rows}
+          emptyView={<EmptyState header="No open 8D reports" description="Open a work item and start its 8D, or load the demo data below." />} />
+      </div>
       <h2>Root causes (Pareto)</h2>
       <Pareto rows={pareto} />
       <Suspense fallback={null}><SeedCard /></Suspense>
@@ -162,7 +169,9 @@ function Pareto({ rows }) {
       {g.points.map((p, i) => (
         <g key={i}>
           <circle cx={p.x} cy={p.y} r={3} className="ed-pareto-dot" />
-          <text x={p.x + 6} y={p.y - 6} className="ed-pareto-pct">{p.label}</text>
+          {/* The last point sits at the right edge, so its label reads leftwards to stay inside the viewBox. */}
+          <text x={i === g.points.length - 1 ? p.x - 6 : p.x + 6} y={Math.max(12, p.y - 6)}
+            textAnchor={i === g.points.length - 1 ? 'end' : 'start'} className="ed-pareto-pct">{p.label}</text>
         </g>
       ))}
     </svg>
