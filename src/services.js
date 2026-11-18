@@ -169,14 +169,34 @@ export async function saveFiveWhy(io, issueId, issueKey, text) {
   return next;
 }
 
-// Admin-only demo data: 6 closed and 2 open 8Ds on BRKT-200, with root-cause pages for the closed
-// ones. Progress is saved after each step under 'seed:demo', so a rerun continues and never duplicates.
+// Finds a current page by exact title in a space (a rerun after a part-way seed reuses it).
+async function findPageByTitle(io, spaceId, title) {
+  const res = await io.confluence('GET', `/wiki/api/v2/spaces/${q(spaceId)}/pages?title=${q(title)}&status=current&limit=5`);
+  return (res.results ?? []).find((p) => p.title === title) ?? null;
+}
+
+// Creates the page, or reuses the one with the same title when Confluence says it already exists.
+async function createOrReusePage(io, spaceId, title, value) {
+  try {
+    return await io.confluence('POST', '/wiki/api/v2/pages', { spaceId: String(spaceId), status: 'current', title, body: { representation: 'storage', value } });
+  } catch (e) {
+    if (e.status !== 400) throw e;
+    const found = await findPageByTitle(io, spaceId, title);
+    if (!found) throw e;
+    return { ...found, reused: true };
+  }
+}
+
+// Admin-only demo data: 6 closed and 2 open 8Ds on BRKT-200 plus the BR-4417 hero, with root-cause
+// pages for the closed ones. Progress is saved after each step under 'seed:demo', so a rerun
+// continues and never duplicates; an existing page with the same title is reused.
 export async function seedDemo(io, { projectKey, spaceId, now = Date.now() } = {}) {
   if (!(await hasPermission(io, 'ADMINISTER'))) throw new Error('Only a Jira admin can load the demo data');
   if (!projectKey) return { error: 'Choose a Jira project for the demo work items.' };
   const project = await io.jira('GET', `/rest/api/3/project/${q(projectKey)}`);
   const done = (await io.store.get('seed:demo')) ?? { cases: {} };
   const created = { issues: 0, pages: 0 };
+  const labelErrors = [];
   for (const c of demoCases(now)) {
     const rec = done.cases[c.ref] ?? {};
     if (!rec.key) {
@@ -189,18 +209,27 @@ export async function seedDemo(io, { projectKey, spaceId, now = Date.now() } = {
     }
     done.cases[c.ref] = rec;
     await io.store.set('seed:demo', done);
-    if (c.rootCause && !rec.pageId && spaceId) {
+    if (c.rootCause && spaceId) {
       const pg = rootCausePage(rec.key, c);
-      const page = await io.confluence('POST', '/wiki/api/v2/pages', {
-        spaceId: String(spaceId), status: 'current', title: pg.title, body: { representation: 'storage', value: pg.body },
-      });
-      await io.confluence('POST', `/wiki/rest/api/content/${q(page.id)}/label`, pg.labels.map((name) => ({ prefix: 'global', name })));
-      rec.pageId = page.id;
-      created.pages += 1;
-      await io.store.set('seed:demo', done);
+      if (!rec.pageId) {
+        const page = await createOrReusePage(io, spaceId, pg.title, pg.body);
+        rec.pageId = String(page.id);
+        if (!page.reused) created.pages += 1;
+        await io.store.set('seed:demo', done); // page id saved before labels, so a label failure loses nothing
+      }
+      if (!rec.labelled) {
+        try {
+          await io.confluence('POST', `/wiki/rest/api/content/${q(rec.pageId)}/label`, pg.labels.map((name) => ({ prefix: 'global', name })));
+          rec.labelled = true;
+          await io.store.set('seed:demo', done);
+        } catch (e) { labelErrors.push(`${rec.key}: ${e.message}`); }
+      }
     }
   }
-  return { created, keys: Object.values(done.cases).map((r) => r.key), error: null };
+  return {
+    created, keys: Object.values(done.cases).map((r) => r.key), error: null,
+    warning: labelErrors.length ? `Pages saved, but labels could not be added (${labelErrors[0]})` : null,
+  };
 }
 
 // Keeps only the records whose work item the signed-in user may browse (the JQL runs as the user).
