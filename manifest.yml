@@ -1,5 +1,5 @@
 # Eight-D: 8D / CAPA problem solving for Jira (Codegeist 2026 entry, THATCHED Ltd)
-# Assistive only: a human approves every D-step. No external egress.
+# Assistive only: a human approves every D-step. No outbound network access.
 modules:
   jira:issuePanel:
     - key: eightd-issue-panel

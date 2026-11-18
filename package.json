@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "npm --prefix static/eightd-ui run build",
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "lint": "forge lint"
   },
   "dependencies": {
