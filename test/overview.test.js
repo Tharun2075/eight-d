@@ -62,3 +62,20 @@ test('overview row carries the D3 containment clock and the 24h / 5d / 30d custo
   assert.deepEqual(row.deadlines.map((d) => d.id), ['24h', '5d', '30d']);
   assert.deepEqual(row.deadlines.map((d) => d.late), [true, false, false]);
 });
+
+test('a failed visibility search is an error, never an empty overview', async () => {
+  const issues = cases.map((c, i) => ({ id: String(100 + i), key: `QA-${i + 1}`, fields: { summary: c.summary, labels: c.labels, project: { key: 'QA' } } }));
+  const make = (status) => {
+    const io = mockIo({ issues });
+    cases.forEach((c, i) => io.store.set(storageKey(String(100 + i)), { ...c.state, issueId: String(100 + i), issueKey: `QA-${i + 1}` }));
+    const real = io.jira;
+    io.jira = async (method, path, body) => {
+      if (path.split('?')[0] === '/rest/api/3/search/jql') throw Object.assign(new Error(`jira returned ${status}`), { status });
+      return real(method, path, body);
+    };
+    return io;
+  };
+  for (const status of [401, 403, 500, undefined]) await assert.rejects(overview(make(status), NOW), new RegExp(`jira returned ${status}`));
+  const r = await overview(make(400), NOW);
+  assert.deepEqual(r.items, []);
+});

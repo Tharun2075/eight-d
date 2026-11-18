@@ -304,11 +304,12 @@ export async function moveToDone(io, key) {
 }
 
 // Keeps only the records whose work item the signed-in user may browse (the JQL runs as the user).
+// A failed search is an error, never an empty list; only a 400 (bad or deleted ids in the batch) reads as nothing visible.
 export async function visibleRecords(io, records, summaries = new Map()) {
   const visible = new Set();
   const ids = records.map((r) => Number(r.issueId)).filter(Number.isFinite);
   for (let i = 0; i < ids.length; i += 100) {
-    const found = await searchJql(io, `id in (${ids.slice(i, i + 100).join(',')})`, ['id', 'summary'], 100).catch(() => []);
+    const found = await searchJql(io, `id in (${ids.slice(i, i + 100).join(',')})`, ['id', 'summary'], 100).catch((e) => { if (e.status === 400) return []; throw e; });
     for (const it of found) {
       visible.add(String(it.id));
       summaries.set(String(it.id), it.fields?.summary ?? '');
