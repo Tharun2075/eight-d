@@ -8,6 +8,7 @@ export function mockIo({ issues = [], pages = [], visibleProjects = null, perms 
   const visible = (it) => !visibleProjects || visibleProjects.includes(it.fields.project.key);
   const byKey = (k) => issues.find((i) => i.key === k || i.id === k);
   let next = 900;
+  let nextPage = 554;
   const jira = async (method, path, body) => {
     calls.push({ product: 'jira', method, path, body });
     const p = path.split('?')[0];
@@ -31,13 +32,15 @@ export function mockIo({ issues = [], pages = [], visibleProjects = null, perms 
     }
     if (p === '/rest/api/3/user/search') return users[new URLSearchParams(path.split('?')[1]).get('query')] ?? [];
     if (method === 'POST' && p === '/rest/api/3/issue') { next += 1; return { id: String(next), key: `QA-${next}` }; }
+    if (method === 'GET' && p.startsWith('/rest/api/3/project/')) return { id: `p-${p.split('/')[5]}`, key: p.split('/')[5] };
     if (method === 'POST') return {};
     throw new Error(`mock jira: no route for ${method} ${p}`);
   };
   const confluence = async (method, path, body) => {
     calls.push({ product: 'confluence', method, path, body });
     if (path.startsWith('/wiki/rest/api/search')) return { results: pages };
-    if (method === 'POST' && path === '/wiki/api/v2/pages') return { id: '555', _links: { webui: '/spaces/QA/pages/555' }, version: { number: 1 } };
+    if (method === 'POST' && path === '/wiki/api/v2/pages') { nextPage += 1; return { id: String(nextPage), _links: { webui: `/spaces/QA/pages/${nextPage}` }, version: { number: 1 } }; }
+    if (method === 'POST' && path.endsWith('/label')) return { results: body };
     if (method === 'GET' && path.startsWith('/wiki/api/v2/pages/')) return { id: '555', version: { number: 1 } };
     if (method === 'PUT') return { id: '555', _links: { webui: '/spaces/QA/pages/555' } };
     throw new Error(`mock confluence: no route for ${method} ${path}`);

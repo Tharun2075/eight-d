@@ -116,6 +116,47 @@ function Overview() {
           </tbody>
         </table>
       )}
+      <SeedCard />
     </div>
+  );
+}
+
+// Admin-only: loads the synthetic BRKT-200 demo (8 work items, 6 root-cause pages). Hidden for others.
+function SeedCard() {
+  const [admin, setAdmin] = useState(false);
+  const [spaces, setSpaces] = useState([]);
+  const [projectKey, setProjectKey] = useState('');
+  const [spaceId, setSpaceId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  useEffect(() => {
+    invoke('isAdmin').then((r) => {
+      setAdmin(r.admin);
+      if (r.admin) invoke('listSpaces').then((s) => setSpaces(s.spaces)).catch(() => {});
+    }).catch(() => {});
+  }, []);
+  if (!admin) return null;
+  const seed = async () => {
+    setBusy(true);
+    try {
+      const r = await invoke('seedDemo', { projectKey: projectKey.trim().toUpperCase(), spaceId });
+      setMsg(r.error ?? `Demo ready: ${r.created.issues} work items and ${r.created.pages} root-cause pages added (${r.keys.join(', ')}).`);
+    } catch (e) { setMsg(e.message); }
+    setBusy(false);
+  };
+  return (
+    <section className="ed-card" aria-label="Demo data">
+      <h4>Demo data (admins only)</h4>
+      <p className="ed-muted">Adds 6 closed and 2 open 8Ds for the synthetic part BRKT-200. Safe to press again.</p>
+      <div className="ed-row">
+        <input aria-label="Project key" placeholder="Project key" value={projectKey} onChange={(e) => setProjectKey(e.target.value)} />
+        <select aria-label="Confluence space" value={spaceId} onChange={(e) => setSpaceId(e.target.value)}>
+          <option value="">No root-cause pages</option>
+          {spaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <button type="button" disabled={busy || !projectKey.trim()} onClick={seed}>{busy ? 'Loading...' : 'Load demo data'}</button>
+      </div>
+      {msg && <p role="status">{msg}</p>}
+    </section>
   );
 }

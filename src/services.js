@@ -14,6 +14,7 @@ import { buildSimilarJql, buildRootCauseCql, rankSimilar, normalizePages, partFa
 import { scaffoldFiveWhy } from './lib/fivewhy.js';
 import { correctiveActionDrafts, buildIssuePayload, buildLinkPayload } from './lib/actions.js';
 import { buildReport } from './lib/report.js';
+import { demoCases, rootCausePage } from './lib/seed.js';
 
 const ISSUE_FIELDS = 'summary,description,labels,components,created,reporter,status,project,issuelinks';
 const q = encodeURIComponent;
@@ -165,4 +166,38 @@ export async function saveFiveWhy(io, issueId, issueKey, text) {
   const next = reducer(await loadState(io, issueId, issueKey), { type: 'setField', stepId: 'D4', field: 'fiveWhys', value: text });
   await io.store.set(storageKey(issueId), next);
   return next;
+}
+
+// Admin-only demo data: 6 closed and 2 open 8Ds on BRKT-200, with root-cause pages for the closed
+// ones. Progress is saved after each step under 'seed:demo', so a rerun continues and never duplicates.
+export async function seedDemo(io, { projectKey, spaceId, now = Date.now() } = {}) {
+  if (!(await hasPermission(io, 'ADMINISTER'))) throw new Error('Only a Jira admin can load the demo data');
+  if (!projectKey) return { error: 'Choose a Jira project for the demo work items.' };
+  const project = await io.jira('GET', `/rest/api/3/project/${q(projectKey)}`);
+  const done = (await io.store.get('seed:demo')) ?? { cases: {} };
+  const created = { issues: 0, pages: 0 };
+  for (const c of demoCases(now)) {
+    const rec = done.cases[c.ref] ?? {};
+    if (!rec.key) {
+      const res = await io.jira('POST', '/rest/api/3/issue', {
+        fields: { project: { id: String(project.id) }, issuetype: { name: 'Task' }, summary: c.summary, labels: c.labels },
+      });
+      Object.assign(rec, { id: String(res.id), key: res.key });
+      await io.store.set(storageKey(rec.id), { ...c.state, issueId: rec.id, issueKey: rec.key });
+      created.issues += 1;
+    }
+    done.cases[c.ref] = rec;
+    await io.store.set('seed:demo', done);
+    if (c.rootCause && !rec.pageId && spaceId) {
+      const pg = rootCausePage(rec.key, c);
+      const page = await io.confluence('POST', '/wiki/api/v2/pages', {
+        spaceId: String(spaceId), status: 'current', title: pg.title, body: { representation: 'storage', value: pg.body },
+      });
+      await io.confluence('POST', `/wiki/rest/api/content/${q(page.id)}/label`, pg.labels.map((name) => ({ prefix: 'global', name })));
+      rec.pageId = page.id;
+      created.pages += 1;
+      await io.store.set('seed:demo', done);
+    }
+  }
+  return { created, keys: Object.values(done.cases).map((r) => r.key), error: null };
 }

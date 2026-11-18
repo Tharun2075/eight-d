@@ -153,6 +153,8 @@ resolver.define('listSpaces', async () => {
   const res = await io.confluence('GET', '/wiki/api/v2/spaces?limit=50&type=global').catch(() => ({ results: [] }));
   return { spaces: (res.results ?? []).map((s) => ({ id: s.id, key: s.key, name: s.name })) };
 });
+resolver.define('isAdmin', async () => ({ admin: await svc.hasPermission(await makeIo(), 'ADMINISTER') }));
+resolver.define('seedDemo', async ({ payload }) => svc.seedDemo(await makeIo(), { projectKey: payload?.projectKey, spaceId: payload?.spaceId }));
 resolver.define('generateReport', async ({ payload, context }) => svc.generateReport(await makeIo(), issueOf(context).key, payload?.spaceId));
 
 export const handler = resolver.getDefinitions();
