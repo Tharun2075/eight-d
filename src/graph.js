@@ -53,7 +53,7 @@ export function buildQualityObject({ kind, id, name, description = '', url = '',
     displayName: name,
     description,
     url,
-    'atlassian:document': { type: { category: 'document' }, content: { mimeType: 'text/plain', text: `${kind}: ${name}` } },
+    'atlassian:document': { type: { category: 'DOCUMENT' }, content: { mimeType: 'text/plain', text: `${kind}: ${name}` } },
     attributes: { kind, ...attributes },
   };
 }
