@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initialState, reducer, STEPS } from '../src/lib/eightd.js';
 import {
-  buildQualityObject, referenceObjects, statusObject, pushObjects, syncConnector, makeGraphReader, loadClient, tgEnabled, BATCH,
+  buildQualityObject, referenceObjects, statusObject, pushObjects, syncConnector, makeGraphReader, loadClient, tgEnabled, BATCH, graphCheck, CHECK_ID,
 } from '../src/graph.js';
 import * as svc from '../src/services.js';
 import { mockIo, issue, fillGates } from './mock-io.js';
@@ -58,7 +58,23 @@ test('graph sync: on by default, status only with TG_STATUS_PUBLIC, TG_ENABLED=f
   assert.match((await syncConnector({ client: off, records, env: { TG_ENABLED: 'false' } })).skipped, /TG_ENABLED/);
   assert.equal(off.sent.length, 0);
   assert.match((await syncConnector({ client: null, records, env: {} })).skipped, /not available/);
-  assert.equal(await loadClient(), null, 'package is not installed, guarded import gives null');
+  assert.equal(typeof (await loadClient()).setObjects, 'function', 'static import gives the real client (default ?? module)');
+});
+
+test('graph check: pushes one test document, reads it back, reports raw outcome; no connection skips', async () => {
+  const sent = [];
+  const client = {
+    setObjects: async (r) => { sent.push(r); return { success: true, results: { accepted: [{ externalId: CHECK_ID }], rejected: [] } }; },
+    getObjectByExternalId: async (r) => ({ success: r.externalId === CHECK_ID && r.connectionId === 'c1', object: { id: CHECK_ID } }),
+  };
+  const r = await graphCheck({ client, connectionId: 'c1', env: {} });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].objects.length, 1);
+  assert.deepEqual([r.push.success, r.push.accepted, r.read.success, r.read.found], [true, 1, true, true]);
+  const bad = { setObjects: async () => ({ success: false, error: 'Forbidden', originalError: { status: 403 } }), getObjectByExternalId: async () => { throw new Error('nope'); } };
+  const b = await graphCheck({ client: bad, connectionId: 'c1', env: {} });
+  assert.deepEqual([b.push.status, b.push.error, b.read.success, b.read.error], [403, 'Forbidden', false, 'nope']);
+  assert.match((await graphCheck({ client, connectionId: '', env: {} })).skipped, /No connection/);
 });
 
 test('graph read: keys come back through Jira as the user; a failure falls back to Jira links + Confluence', async () => {
@@ -84,11 +100,11 @@ test('graph read: keys come back through Jira as the user; a failure falls back 
   assert.equal(makeGraphReader(async () => ({}), { TG_ENABLED: 'false' }), null);
 });
 
-test('manifest: connector declared, no external permissions, teamwork-graph not a dependency', () => {
+test('manifest: connector declared, no external permissions, teamwork-graph is the real dependency', () => {
   const m = readFileSync(new URL('../manifest.yml', import.meta.url), 'utf8');
   assert.match(m, /graph:connector:/);
   assert.doesNotMatch(m, /permissions:[\s\S]*external/);
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  assert.equal({ ...pkg.dependencies, ...pkg.devDependencies }['@forge/teamwork-graph'], undefined);
+  assert.match(pkg.dependencies['@forge/teamwork-graph'], /^\^?5\./);
   assert.equal(STEPS.length, 8);
 });

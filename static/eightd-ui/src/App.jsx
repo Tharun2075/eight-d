@@ -267,6 +267,27 @@ function SeedCard() {
       </div>
       {msg?.ok && <SectionMessage appearance="success"><p>{msg.ok}</p></SectionMessage>}
       <ErrorMsg error={msg?.error} />
+      <GraphCheck />
     </section>
+  );
+}
+
+// Admin-only (rendered inside SeedCard): pushes one test document to Teamwork Graph and reads it back.
+function GraphCheck() {
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState(null);
+  const run = async () => {
+    setBusy(true); setOut(null);
+    try { setOut({ result: await invoke('graphCheck') }); } catch (e) { setOut({ error: e.message }); }
+    setBusy(false);
+  };
+  return (
+    <div className="ed-col">
+      <h4>Teamwork Graph</h4>
+      <p className="ed-muted">Sends one test document through the connector, reads it back and shows the raw answer.</p>
+      <div><Button isLoading={busy} onClick={run}>Graph check</Button></div>
+      {out?.result && <pre className="ed-raw">{JSON.stringify(out.result, null, 2)}</pre>}
+      <ErrorMsg error={out?.error} />
+    </div>
   );
 }

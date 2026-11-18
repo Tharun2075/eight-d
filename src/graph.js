@@ -1,9 +1,10 @@
 // Teamwork Graph connector: pushes part, machine, supplier-lot and 8D status objects, and reads
 // related work items back. Behind TG_ENABLED (on unless set to 'false').
 //
-// @forge/teamwork-graph is not a dependency (its npm licence is UNLICENSED). The client is either
-// injected (tests) or loaded with a guarded dynamic import that yields null when the package is
-// absent; null means "skip the push" and services.js falls back to Jira links + Confluence search.
+// @forge/teamwork-graph is Atlassian's platform SDK (npm says UNLICENSED; used under the Atlassian
+// Developer Terms). Tests inject a client; a null client means "skip the push" and services.js
+// falls back to Jira links + Confluence search.
+import TgModule from '@forge/teamwork-graph';
 import { progress, currentStep } from './lib/eightd.js';
 import { PART_FAMILY, MACHINES, LOTS } from './lib/seed.js';
 
@@ -14,11 +15,32 @@ export const tgEnabled = (env = process.env) => env.TG_ENABLED !== 'false';
 // Status objects name work item keys site-wide, so they are pushed only when an admin opts in.
 export const statusPublic = (env = process.env) => env.TG_STATUS_PUBLIC === 'true';
 
+// "type": "module" makes a CommonJS default import the whole exports object (PITFALLS 31).
+const TG = TgModule.default ?? TgModule;
+
 export async function loadClient(injected) {
   if (injected !== undefined) return injected;
-  const name = '@forge/teamwork-graph'; // a variable keeps the bundler from requiring the package
-  const mod = await import(name).catch(() => null);
-  return mod?.graph ?? mod?.default ?? null;
+  return TG?.setObjects ? TG : TG?.graph ?? null;
+}
+
+export const CHECK_ID = 'part:graph-check';
+
+// Pushes ONE test document and reads it back; returns the raw outcome of both calls so an admin
+// can see exactly what the connector answers (status codes included), never a summary.
+export async function graphCheck({ client, connectionId, env } = {}) {
+  if (!tgEnabled(env)) return { skipped: 'TG_ENABLED is false' };
+  if (!connectionId) return { skipped: 'No connection yet: an admin must connect "Eight-D quality objects" in Atlassian Administration > Connectors first' };
+  const c = await loadClient(client);
+  if (!c?.setObjects) return { skipped: 'Teamwork Graph client not available' };
+  const raw = (r) => ({ success: r?.success ?? false, error: r?.error ?? null, status: r?.originalError?.status ?? r?.originalError?.code ?? null });
+  const obj = buildQualityObject({ kind: 'part', id: 'graph-check', name: 'Eight-D graph check', description: `Test document ${new Date().toISOString()}` });
+  const push = await c.setObjects({ objects: [obj], connectionId }).catch((e) => ({ success: false, error: e.message }));
+  const read = await c.getObjectByExternalId({ objectType: 'atlassian:document', externalId: CHECK_ID, connectionId }).catch((e) => ({ success: false, error: e.message }));
+  return {
+    connectionId,
+    push: { ...raw(push), accepted: push?.results?.accepted?.length ?? 0, rejected: push?.results?.rejected ?? [] },
+    read: { ...raw(read), found: Boolean(read?.object) },
+  };
 }
 
 // Every object is an atlassian:document (the connector accepts only atlassian:* types); the real

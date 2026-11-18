@@ -4,7 +4,7 @@ import ResolverModule from '@forge/resolver';
 import api, { route, assumeTrustedRoute } from '@forge/api';
 import { kvs, WhereConditions } from '@forge/kvs';
 import * as svc from './services.js';
-import { syncConnector, makeGraphReader } from './graph.js';
+import { syncConnector, makeGraphReader, graphCheck } from './graph.js';
 import {
   normalize, reducer, storageKey, isSafetyRelated, draft5W2H, SAFETY_MESSAGE,
 } from './lib/eightd.js';
@@ -144,6 +144,11 @@ resolver.define('listSpaces', async () => {
   return { spaces: (res.results ?? []).map((s) => ({ id: s.id, key: s.key, name: s.name })) };
 });
 resolver.define('isAdmin', async () => ({ admin: await svc.hasPermission(await makeIo(), 'ADMINISTER') }));
+// Admin-only: one test document through the connector and back, raw outcome shown on the overview.
+resolver.define('graphCheck', async () => {
+  if (!(await svc.hasPermission(await makeIo(), 'ADMINISTER'))) throw new Error('Only a Jira admin can run the graph check');
+  return graphCheck({ connectionId: await kvs.get(CONNECTION_KEY) });
+});
 resolver.define('seedDemo', async ({ payload }) => svc.seedDemo(await makeIo(), { projectKey: payload?.projectKey, spaceId: payload?.spaceId }));
 resolver.define('generateReport', async ({ payload, context }) => svc.generateReport(await makeIo(), (await issueOf(context, payload)).key, payload?.spaceId));
 
@@ -195,8 +200,14 @@ export async function listOpen8Ds() {
 
 // Teamwork Graph connector: when an admin connects, push the part, machines, supplier lots and the
 // status of every 8D (status only with TG_STATUS_PUBLIC=true). Runs without a user, so it reads only app storage, never Jira content.
+const CONNECTION_KEY = 'tg:connection';
+
 export async function onConnectionChange(event) {
-  if (event?.action === 'DELETED') return { success: true };
+  if (event?.action === 'DELETED') {
+    await kvs.delete(CONNECTION_KEY);
+    return { success: true };
+  }
+  if (event?.connectionId) await kvs.set(CONNECTION_KEY, event.connectionId);
   const records = [];
   let cursor;
   do {
