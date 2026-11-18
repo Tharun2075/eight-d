@@ -261,7 +261,7 @@ function SeedCard() {
       }
       if (r.error) setMsg({ error: r.error });
       else if (r.more) setMsg({ error: `Stopped at ${r.done} of ${r.total}. Press Load demo data again to continue.` });
-      else setMsg({ ok: `Demo ready: ${total.issues} work items and ${total.pages} root-cause pages added (${r.keys.join(', ')}).`, warning: r.warning });
+      else setMsg({ ok: `Demo ready: ${total.issues} work items and ${total.pages} root-cause pages added (${r.keys.join(', ')}).${graphNote(r.graph)}`, warning: r.warning });
     } catch (e) { setMsg({ error: e.message }); }
     setProgress(null);
     setBusy(false);
@@ -288,19 +288,30 @@ function SeedCard() {
 }
 
 // Admin-only (rendered inside SeedCard): pushes one test document to Teamwork Graph and reads it back.
+// One line for the seed message: sent count, the skip reason or the error from the connector push.
+function graphNote(g) {
+  if (!g) return '';
+  if (g.error) return ` Graph: ${g.error}.`;
+  if (g.skipped) return ` Graph: ${g.skipped}.`;
+  return ` Graph: ${g.sent ?? 0} sent${g.rejected?.length ? `, ${g.rejected.length} rejected` : ''}.`;
+}
+
 function GraphCheck() {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(null);
   const [out, setOut] = useState(null);
-  const run = async () => {
-    setBusy(true); setOut(null);
-    try { setOut({ result: await invoke('graphCheck') }); } catch (e) { setOut({ error: e.message }); }
-    setBusy(false);
+  const run = async (name) => {
+    setBusy(name); setOut(null);
+    try { setOut({ result: await invoke(name) }); } catch (e) { setOut({ error: e.message }); }
+    setBusy(null);
   };
   return (
     <div className="ed-col">
       <h4>Teamwork Graph</h4>
-      <p className="ed-muted">Sends one test document through the connector, reads it back and shows the raw answer.</p>
-      <div><Button isLoading={busy} onClick={run}>Graph check</Button></div>
+      <p className="ed-muted">Graph check sends one test document through the connector and reads it back. Sync pushes every 8D again. Both show the raw answer.</p>
+      <div className="ed-row">
+        <Button isLoading={busy === 'graphCheck'} isDisabled={Boolean(busy)} onClick={() => run('graphCheck')}>Graph check</Button>
+        <Button isLoading={busy === 'graphSync'} isDisabled={Boolean(busy)} onClick={() => run('graphSync')}>Sync to Teamwork Graph</Button>
+      </div>
       {out?.result && <pre className="ed-raw">{JSON.stringify(out.result, null, 2)}</pre>}
       <ErrorMsg error={out?.error} />
     </div>

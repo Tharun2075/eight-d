@@ -41,6 +41,13 @@ export async function hasPermission(io, perm, issueId) {
   return Boolean(res?.permissions?.[perm]?.havePermission);
 }
 
+// Admin-only resync to Teamwork Graph: io.graphSync pushes reference + status objects, raw result back.
+export async function graphSync(io) {
+  if (!(await hasPermission(io, 'ADMINISTER'))) throw new Error('Only a Jira admin can sync to Teamwork Graph');
+  if (!io.graphSync) return { skipped: 'Teamwork Graph sync not available' };
+  return io.graphSync();
+}
+
 async function requireEdit(io, issueId) {
   if (!(await hasPermission(io, 'EDIT_ISSUES', issueId))) throw new Error('You need edit permission on this work item');
 }

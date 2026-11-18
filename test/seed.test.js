@@ -185,3 +185,16 @@ test('seed: a finished seed calls graphSync once and returns its raw result; err
   const r2 = await svc.seedDemo(io, { projectKey: 'QA', spaceId: '', now: Date.parse('2026-11-18') });
   assert.deepEqual(r2.graph, { error: 'no connection' });
 });
+
+test('graphSync resolver: admin only, returns the raw connector counts', async () => {
+  const raw = { sent: 7, batches: 1, rejected: [] };
+  let calls = 0;
+  const user = mockIo({ perms: { EDIT_ISSUES: true } });
+  user.graphSync = async () => { calls += 1; return raw; };
+  await assert.rejects(svc.graphSync(user), /Only a Jira admin/);
+  assert.equal(calls, 0);
+  const admin = mockIo({ perms: { ADMINISTER: true } });
+  admin.graphSync = async () => { calls += 1; return raw; };
+  assert.deepEqual(await svc.graphSync(admin), raw);
+  assert.equal(calls, 1);
+});

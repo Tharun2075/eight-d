@@ -124,6 +124,7 @@ async function makeIo() {
     },
     graph: await graphReader(),
     baseUrl: await siteUrl(),
+    graphSync: async () => syncAll(await kvs.get(CONNECTION_KEY)),
   };
 }
 
@@ -156,6 +157,7 @@ resolver.define('graphCheck', async () => {
   if (!(await svc.hasPermission(await makeIo(), 'ADMINISTER'))) throw new Error('Only a Jira admin can run the graph check');
   return graphCheck({ connectionId: await kvs.get(CONNECTION_KEY), baseUrl: await siteUrl() });
 });
+resolver.define('graphSync', async () => svc.graphSync(await makeIo()));
 resolver.define('seedDemo', async ({ payload }) => svc.seedDemo(await makeIo(), { projectKey: payload?.projectKey, spaceId: payload?.spaceId }));
 resolver.define('generateReport', async ({ payload, context }) => svc.generateReport(await makeIo(), (await issueOf(context, payload)).key, payload?.spaceId));
 
@@ -215,6 +217,13 @@ export async function onConnectionChange(event) {
     return { success: true };
   }
   if (event?.connectionId) await kvs.set(CONNECTION_KEY, event.connectionId);
+  const result = await syncAll(event?.connectionId ?? (await kvs.get(CONNECTION_KEY)));
+  return { success: true, result };
+}
+
+// Pushes every stored 8D (plus the reference objects) through the connector; raw pushObjects result.
+async function syncAll(connectionId) {
+  if (!connectionId) return { skipped: 'No Teamwork Graph connection yet: an admin connects Eight-D under Apps > Connected apps' };
   const records = [];
   let cursor;
   do {
@@ -222,8 +231,7 @@ export async function onConnectionChange(event) {
     records.push(...page.results.map((r) => normalize(r.value)));
     cursor = page.nextCursor;
   } while (cursor);
-  const result = await syncConnector({ records, connectionId: event?.connectionId, baseUrl: (await kvs.get(SITE_KEY)) ?? '' });
-  return { success: true, result };
+  return syncConnector({ records, connectionId, baseUrl: (await kvs.get(SITE_KEY)) || (await siteUrl()) });
 }
 
 export { buildQualityObject } from './graph.js';
