@@ -134,6 +134,11 @@ modules:
       name: Eight-D MCP
       tools:
         - listOpen8Ds
+        - draftProblemStatement
+        - findSimilarNonconformances
+        - scaffoldFiveWhy
+        - createCorrectiveActions
+        - generateReport
   graph:connector:
     - key: eightd-quality-objects
       name: Eight-D quality objects
