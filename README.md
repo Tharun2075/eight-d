@@ -8,7 +8,8 @@ Parts:
 - **8D panel** on each work item: D1-D8 stepper, progress bar, text fields, Approve per step.
 - **8D Overview** global page: all open 8Ds you can see.
 - **8D Coach** Rovo agent, with the `draftProblemStatement` action (5W2H draft of D2)
-  and `listOpen8Ds`, also exposed through a Rovo MCP stub.
+  and `listOpen8Ds`. The same six tools are exposed through a Rovo MCP server; listing works,
+  tool calls wait on an Atlassian consent fix (ECOHELP-186879).
 - **Rovo actions**: find similar nonconformances, 5-Why scaffold, corrective-action preview,
   customer report preview. Read-only; writes need a human click in the panel.
 - **Teamwork Graph connector** (`TG_ENABLED`, on unless set to `false`): pushes part, machine and
@@ -50,8 +51,25 @@ Eight-D is an assistant. It never decides anything on its own:
 - **Roles:** the customer is the Data Fiduciary (data controller) for the
   content of their work items and 8D reports. Eight-D (THATCHED Ltd) acts only
   as a processor, on the customer's instructions, inside Forge.
-- **Scopes:** `read:jira-work`, `storage:app`, and `read/write:object:jira`
-  for the Teamwork Graph connector.
+- **Scopes:** `read:jira-work`, `write:jira-work` (corrective-action work items),
+  `read:jira-user`, `search:confluence`, `read:space:confluence`, `read/write:page:confluence`
+  (customer report), `read/write:label:confluence` (root-cause pages), `storage:app`, and
+  `read/write:object:jira` for the Teamwork Graph connector.
+
+## For judges
+
+- **Install:** use the judge install link on the Devpost page: Get app, pick your site, Install
+  (Jira and Confluence both say "Installation successful").
+- **Project:** a new site has no Jira project; create any one (for example key `SQ`).
+- **Demo data:** Apps > 8D Overview, type the project key, press **Load demo data** once.
+  You see "Demo ready: 9 work items ..." and the overview lists SQ-7, SQ-8 and SQ-9 as open.
+- **Panel:** open SQ-9, press the app icon under the title, then **8D**: "Open: D7 Prevent
+  recurrence", "6 of 8 steps approved".
+- **Rovo (if your site has Rovo):** Ask Rovo > 8D Coach > "Draft the D2 problem statement for
+  this work item".
+- **Video:** https://youtu.be/T9lp-VFKhn8
+
+All demo data is synthetic.
 
 ## Licence
 
