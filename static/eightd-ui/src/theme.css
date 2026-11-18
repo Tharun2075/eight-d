@@ -1,66 +1,24 @@
-/* Eight-D theme: neutral tokens only (no brand palette). Every colour the UI uses is here. */
-:root {
-  --ed-bg: #ffffff;
-  --ed-surface: #f4f5f7;
-  --ed-border: #dfe1e6;
-  --ed-text: #172b4d;
-  --ed-text-muted: #5e6c84;
-  --ed-accent: #42526e;
-  --ed-accent-text: #ffffff;
-  --ed-done: #505f79;
-  --ed-warn-bg: #fff4e5;
-  --ed-warn-border: #b65c02;
-  --ed-warn-text: #5c2c00;
-  --ed-radius: 4px;
-  --ed-gap: 8px;
-  --ed-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ed-bg: #1d2125;
-    --ed-surface: #22272b;
-    --ed-border: #38414a;
-    --ed-text: #dee4ea;
-    --ed-text-muted: #9fadbc;
-    --ed-accent: #8c9bab;
-    --ed-accent-text: #1d2125;
-    --ed-done: #b6c2cf;
-    --ed-warn-bg: #3a2a14;
-    --ed-warn-border: #e2b203;
-    --ed-warn-text: #f8e6a0;
-  }
-}
-body { margin: 0; background: var(--ed-bg); color: var(--ed-text); font: 14px/1.4 var(--ed-font); }
-.ed-wrap { padding: var(--ed-gap); }
-.ed-banner { border: 1px solid var(--ed-warn-border); background: var(--ed-warn-bg); color: var(--ed-warn-text); padding: var(--ed-gap); border-radius: var(--ed-radius); margin-bottom: var(--ed-gap); font-weight: 600; }
-.ed-progress { height: 6px; background: var(--ed-surface); border-radius: var(--ed-radius); overflow: hidden; margin: var(--ed-gap) 0; }
-.ed-progress > div { height: 100%; background: var(--ed-accent); }
-.ed-stepper { display: flex; gap: 4px; flex-wrap: wrap; list-style: none; padding: 0; margin: 0 0 var(--ed-gap); }
-.ed-stepper button { border: 1px solid var(--ed-border); background: var(--ed-surface); color: var(--ed-text); border-radius: var(--ed-radius); padding: 4px 8px; cursor: pointer; }
-.ed-stepper button[aria-current="step"] { border-color: var(--ed-accent); font-weight: 700; }
-.ed-stepper button.ed-done { color: var(--ed-done); text-decoration: line-through; }
-.ed-field { display: block; margin-bottom: var(--ed-gap); }
-.ed-field span { display: block; color: var(--ed-text-muted); font-size: 12px; }
-.ed-field textarea { width: 100%; box-sizing: border-box; min-height: 48px; background: var(--ed-bg); color: var(--ed-text); border: 1px solid var(--ed-border); border-radius: var(--ed-radius); font: inherit; }
-.ed-actions { display: flex; gap: var(--ed-gap); flex-wrap: wrap; }
-.ed-btn { border: 1px solid var(--ed-accent); background: var(--ed-accent); color: var(--ed-accent-text); border-radius: var(--ed-radius); padding: 6px 12px; cursor: pointer; }
-.ed-btn.ed-secondary { background: transparent; color: var(--ed-text); }
-.ed-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.ed-muted { color: var(--ed-text-muted); font-size: 12px; }
-.ed-error { color: var(--ed-warn-text); background: var(--ed-warn-bg); padding: 4px var(--ed-gap); border-radius: var(--ed-radius); }
-table.ed-table { border-collapse: collapse; width: 100%; }
-.ed-table th, .ed-table td { border-bottom: 1px solid var(--ed-border); padding: 4px var(--ed-gap); text-align: left; }
-.ed-card { border: 1px solid var(--ed-border); background: var(--ed-surface); border-radius: var(--ed-radius); padding: var(--ed-gap); margin: var(--ed-gap) 0; }
-.ed-card h4 { margin: 0 0 var(--ed-gap); }
-.ed-card select { width: 100%; margin-bottom: 4px; background: var(--ed-bg); color: var(--ed-text); border: 1px solid var(--ed-border); border-radius: var(--ed-radius); font: inherit; }
-.ed-row { padding: 4px 0; border-top: 1px solid var(--ed-border); }
-.ed-cites { display: flex; gap: var(--ed-gap); flex-wrap: wrap; font-size: 12px; }
-.ed-cites a { color: var(--ed-text); }
-
-.ed-late { margin-left: var(--ed-gap); padding: 1px 6px; border: 1px solid var(--ed-warn-border); border-radius: var(--ed-radius); background: var(--ed-warn-bg); color: var(--ed-warn-text); font-size: 12px; }
+/* Every colour, space and font comes from Atlassian design tokens (var(--ds-*)). No hex values. */
+body { background: var(--ds-surface); color: var(--ds-text); font: var(--ds-font-body); }
+.ed-wrap { padding: var(--ds-space-100); display: flex; flex-direction: column; gap: var(--ds-space-150); }
+.ed-page { padding: var(--ds-space-300); max-width: 1100px; }
+.ed-muted { color: var(--ds-text-subtle); font: var(--ds-font-body-small); }
+.ed-row { display: flex; flex-wrap: wrap; gap: var(--ds-space-100); align-items: center; }
+.ed-col { display: flex; flex-direction: column; gap: var(--ds-space-100); }
+.ed-card { border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-border-radius-200);
+  background: var(--ds-surface-raised); box-shadow: var(--ds-shadow-raised); padding: var(--ds-space-200);
+  display: flex; flex-direction: column; gap: var(--ds-space-100); }
+.ed-card h4, .ed-wrap h3, .ed-page h2 { margin: 0; font: var(--ds-font-heading-small); color: var(--ds-text); }
+.ed-page h1 { margin: 0; font: var(--ds-font-heading-large); }
+.ed-field { display: flex; flex-direction: column; gap: var(--ds-space-050); font: var(--ds-font-body-small); color: var(--ds-text-subtle); }
+.ed-progress { height: var(--ds-space-075); border-radius: var(--ds-border-radius); background: var(--ds-background-neutral); overflow: hidden; }
+.ed-progress > div { height: 100%; background: var(--ds-background-brand-bold); }
+.ed-state { display: flex; gap: var(--ds-space-100); align-items: center; color: var(--ds-text-subtle); }
+.ed-cites a { margin-right: var(--ds-space-100); color: var(--ds-link); }
+.ed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--ds-space-150); }
 .ed-pareto { width: 100%; max-width: 640px; }
-.ed-pareto-bar { fill: var(--ed-accent); }
-.ed-pareto-line { fill: none; stroke: var(--ed-warn-border); stroke-width: 2; }
-.ed-pareto-axis { stroke: var(--ed-border); }
-.ed-pareto-text { fill: var(--ed-text); font-size: 11px; font-family: var(--ed-font); }
-.ed-pareto-muted { fill: var(--ed-text-muted); font-size: 10px; font-family: var(--ed-font); }
+.ed-pareto-axis { stroke: var(--ds-border); }
+.ed-pareto-bar { fill: var(--ds-background-brand-bold); }
+.ed-pareto-line { fill: none; stroke: var(--ds-border-accent-orange); stroke-width: 2; }
+.ed-pareto-text { fill: var(--ds-text); font: var(--ds-font-body-small); }
+.ed-pareto-muted { fill: var(--ds-text-subtlest); font: var(--ds-font-body-small); }
