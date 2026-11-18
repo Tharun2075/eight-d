@@ -1,10 +1,11 @@
 // Eight-D Forge backend: resolver for the Custom UI, Rovo actions, connector stub.
 // Data stays in Forge hosted storage (KVS). No external egress.
 import Resolver from '@forge/resolver';
-import api, { route } from '@forge/api';
+import api, { route, assumeTrustedRoute } from '@forge/api';
 import { kvs, WhereConditions } from '@forge/kvs';
+import * as svc from './services.js';
 import {
-  initialState, reducer, storageKey, isSafetyRelated, progress, currentStep, draft5W2H, SAFETY_MESSAGE,
+  normalize, reducer, storageKey, isSafetyRelated, progress, currentStep, draft5W2H, SAFETY_MESSAGE,
 } from './lib/eightd.js';
 
 const ISSUE_FIELDS = 'summary,description,labels,components,created,reporter';
@@ -17,7 +18,7 @@ async function readIssue(issueIdOrKey) {
 }
 
 async function loadState(issueId, issueKey) {
-  return (await kvs.get(storageKey(issueId))) ?? initialState(issueId, issueKey);
+  return normalize(await kvs.get(storageKey(issueId)), issueId, issueKey);
 }
 
 // Keeps only the work items the signed-in user may browse (JQL search runs as the user).
@@ -91,6 +92,69 @@ resolver.define('draftD2', async ({ context }) => {
 
 resolver.define('listOpen', async () => ({ items: await listOpen() }));
 
+// The io object for services.js: every request runs as the signed-in user (asUser).
+// Paths are built in services.js with encodeURIComponent on every variable part.
+async function call(product, method, path, body) {
+  const req = product === 'jira' ? api.asUser().requestJira : api.asUser().requestConfluence;
+  const res = await req(assumeTrustedRoute(path), body === undefined ? { method } : {
+    method, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = new Error(`${product} returned ${res.status} for ${method} ${path.split('?')[0]}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.status === 204 ? {} : res.json();
+}
+
+async function siteUrl() {
+  try { return (await call('jira', 'GET', '/rest/api/3/serverInfo')).baseUrl ?? ''; } catch { return ''; }
+}
+
+async function makeIo() {
+  return {
+    jira: (m, p, b) => call('jira', m, p, b),
+    confluence: (m, p, b) => call('confluence', m, p, b),
+    store: {
+      get: (k) => kvs.get(k),
+      set: (k, v) => kvs.set(k, v),
+      async list(prefix) {
+        const out = [];
+        let cursor;
+        do {
+          const page = await kvs.query().where('key', WhereConditions.beginsWith(prefix)).limit(50).cursor(cursor).getMany();
+          out.push(...page.results.map((r) => r.value));
+          cursor = page.nextCursor;
+        } while (cursor);
+        return out;
+      },
+    },
+    graph: await graphReader(),
+    baseUrl: await siteUrl(),
+  };
+}
+
+// Teamwork Graph reader: filled in by the graph feature; null means "use the Jira fallback".
+async function graphReader() { return null; }
+
+const issueOf = (context) => context.extension.issue;
+
+resolver.define('findSimilar', async ({ context }) => svc.findSimilar(await makeIo(), issueOf(context).key));
+resolver.define('scaffoldFiveWhy', async ({ context }) => svc.scaffoldWhy(await makeIo(), issueOf(context).key));
+resolver.define('saveFiveWhy', async ({ payload, context }) => {
+  const { id, key } = issueOf(context);
+  return { state: await svc.saveFiveWhy(await makeIo(), id, key, String(payload?.text ?? '')) };
+});
+resolver.define('previewCorrectiveActions', async ({ context }) => svc.previewCorrectiveActions(await makeIo(), issueOf(context).key));
+resolver.define('createCorrectiveActions', async ({ context }) => svc.createCorrectiveActions(await makeIo(), issueOf(context).key));
+resolver.define('previewReport', async ({ context }) => svc.previewReport(await makeIo(), issueOf(context).key));
+resolver.define('listSpaces', async () => {
+  const io = await makeIo();
+  const res = await io.confluence('GET', '/wiki/api/v2/spaces?limit=50&type=global').catch(() => ({ results: [] }));
+  return { spaces: (res.results ?? []).map((s) => ({ id: s.id, key: s.key, name: s.name })) };
+});
+resolver.define('generateReport', async ({ payload, context }) => svc.generateReport(await makeIo(), issueOf(context).key, payload?.spaceId));
+
 export const handler = resolver.getDefinitions();
 
 // Rovo action: read the work item, return a 5W2H draft for human approval.
@@ -100,6 +164,36 @@ export async function draftProblemStatement(payload) {
   const issue = await readIssue(issueKey);
   if (isSafetyRelated(issue.fields?.labels)) return { safety: true, message: SAFETY_MESSAGE };
   return { issueKey, draft: draft5W2H(issue), approval: 'A human must review this draft and press Approve on D2 in the 8D panel.' };
+}
+
+// Work item key from the action input, or from the Jira page the user has open (payload.context).
+const keyFrom = (payload) => payload?.issueKey || payload?.context?.jira?.issueKey;
+const NEED_KEY = { error: 'Give a Jira work item key, for example QA-12.' };
+
+// Rovo actions below are read-only (actionVerb GET, see PITFALLS 14). Writes happen only when a
+// human presses the button in the 8D panel; the action result says so.
+export async function findSimilarNonconformances(payload) {
+  const key = keyFrom(payload);
+  return key ? svc.findSimilar(await makeIo(), key) : NEED_KEY;
+}
+
+export async function scaffoldFiveWhyAction(payload) {
+  const key = keyFrom(payload);
+  if (!key) return NEED_KEY;
+  return { ...(await svc.scaffoldWhy(await makeIo(), key)), approval: 'Draft only: pick each answer in the D4 step of the 8D panel, then press Approve.' };
+}
+
+export async function createCorrectiveActionsAction(payload) {
+  const key = keyFrom(payload);
+  if (!key) return NEED_KEY;
+  return { ...(await svc.previewCorrectiveActions(await makeIo(), key)), approval: 'Preview only: press "Create corrective actions" in the 8D panel to create these linked work items.' };
+}
+
+export async function generateReportAction(payload) {
+  const key = keyFrom(payload);
+  if (!key) return NEED_KEY;
+  const r = await svc.previewReport(await makeIo(), key);
+  return { issueKey: r.issueKey, title: r.title, approvedSteps: r.approvedSteps, approval: 'Preview only: press "Generate customer report" at D8 in the 8D panel to publish the Confluence page.' };
 }
 
 // Rovo action and MCP tool: open 8Ds with progress.

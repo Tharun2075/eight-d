@@ -5,7 +5,7 @@ import { STEPS, progress, currentStep, SAFETY_MESSAGE } from '../../../src/lib/e
 const LABELS = {
   roles: 'Team roles', champion: 'Champion (role)', what: 'What', where: 'Where', when: 'When',
   who: 'Who detects', why: 'Why it matters', how: 'How', howMany: 'How many', actions: 'Actions',
-  verification: 'Verification', fiveWhys: '5 Whys', escapePoint: 'Escape point', evidence: 'Evidence',
+  verification: 'Verification', fiveWhys: '5 Whys', causeCategory: 'Cause category (6M)', escapePoint: 'Escape point', evidence: 'Evidence',
   implementation: 'Implementation', validation: 'Validation', systemChanges: 'System changes',
   lessons: 'Lessons learned', closure: 'Closure', recognition: 'Team recognition',
 };

@@ -40,9 +40,15 @@ modules:
       conversationStarters:
         - Draft the D2 problem statement for this work item
         - Which 8Ds are still open?
+        - Find similar past nonconformances for this work item
+        - Scaffold a 5-Why chain from similar past root causes
       actions:
         - draftProblemStatement
         - listOpen8Ds
+        - findSimilarNonconformances
+        - scaffoldFiveWhy
+        - createCorrectiveActions
+        - generateReport
   action:
     - key: draftProblemStatement
       name: Draft 8D problem statement (5W2H)
@@ -60,6 +66,52 @@ modules:
       function: listOpen8DsFn
       actionVerb: GET
       description: Lists the 8D reports stored by Eight-D that are not yet closed (D8 not approved), with progress.
+    # The four actions below are read-only previews (actionVerb GET, PITFALLS 14). Creating work
+    # items or publishing the report happens only when a human presses the button in the 8D panel.
+    - key: findSimilarNonconformances
+      name: Find similar nonconformances
+      function: similarFn
+      actionVerb: GET
+      description: Finds up to 3 past work items with the same part family or labels, with their approved root causes and citations (Jira links and Confluence root-cause pages the user can see).
+      inputs:
+        issueKey:
+          title: Work item key
+          type: string
+          required: true
+          description: The Jira work item key, for example QA-12.
+    - key: scaffoldFiveWhy
+      name: Scaffold a 5-Why chain
+      function: fiveWhyFn
+      actionVerb: GET
+      description: Returns a draft 5-Why chain whose candidate answers come from similar past root causes. A human picks each answer and approves D4 in the 8D panel.
+      inputs:
+        issueKey:
+          title: Work item key
+          type: string
+          required: true
+          description: The Jira work item key, for example QA-12.
+    - key: createCorrectiveActions
+      name: Preview corrective actions
+      function: correctiveActionsFn
+      actionVerb: GET
+      description: Lists the corrective action work items (summary, owner, due date) that would be created from the approved D5 and D6 text. Creation needs a human click in the 8D panel.
+      inputs:
+        issueKey:
+          title: Work item key
+          type: string
+          required: true
+          description: The Jira work item key, for example QA-12.
+    - key: generateReport
+      name: Preview customer 8D report
+      function: reportFn
+      actionVerb: GET
+      description: Shows which approved D-steps would go into the customer 8D report page in Confluence. Publishing needs a human click at D8 in the 8D panel.
+      inputs:
+        issueKey:
+          title: Work item key
+          type: string
+          required: true
+          description: The Jira work item key, for example QA-12.
   rovo:mcp:
     - key: eightd-mcp
       name: Eight-D MCP
@@ -89,6 +141,14 @@ modules:
       handler: index.draftProblemStatement
     - key: listOpen8DsFn
       handler: index.listOpen8Ds
+    - key: similarFn
+      handler: index.findSimilarNonconformances
+    - key: fiveWhyFn
+      handler: index.scaffoldFiveWhyAction
+    - key: correctiveActionsFn
+      handler: index.createCorrectiveActionsAction
+    - key: reportFn
+      handler: index.generateReportAction
     - key: onConnectionChangeFn
       handler: index.onConnectionChange
 resources:
@@ -97,6 +157,12 @@ resources:
 permissions:
   scopes:
     - read:jira-work
+    - write:jira-work
+    - read:jira-user
+    - search:confluence
+    - read:space:confluence
+    - read:page:confluence
+    - write:page:confluence
     - storage:app
     - write:object:jira
     - read:object:jira

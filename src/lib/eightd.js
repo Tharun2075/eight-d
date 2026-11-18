@@ -4,7 +4,7 @@ export const STEPS = [
   { id: 'D1', title: 'Team', fields: ['roles', 'champion'] },
   { id: 'D2', title: 'Problem description (5W2H)', fields: ['what', 'where', 'when', 'who', 'why', 'how', 'howMany'] },
   { id: 'D3', title: 'Containment', fields: ['actions', 'verification'] },
-  { id: 'D4', title: 'Root cause', fields: ['fiveWhys', 'escapePoint'] },
+  { id: 'D4', title: 'Root cause', fields: ['fiveWhys', 'causeCategory', 'escapePoint'] },
   { id: 'D5', title: 'Permanent corrective actions', fields: ['actions', 'evidence'] },
   { id: 'D6', title: 'Implement and validate', fields: ['implementation', 'validation'] },
   { id: 'D7', title: 'Prevent recurrence', fields: ['systemChanges', 'lessons'] },
@@ -21,8 +21,23 @@ export function initialState(issueId, issueKey = null) {
   for (const s of STEPS) {
     steps[s.id] = { fields: Object.fromEntries(s.fields.map((f) => [f, ''])), approvedBy: null, approvedAt: null };
   }
-  return { issueId: String(issueId), issueKey, steps, closed: false, updatedAt: null };
+  return { issueId: String(issueId), issueKey, steps, closed: false, startedAt: null, updatedAt: null };
 }
+
+// Fills in fields added by later app versions, so older stored records keep working.
+export function normalize(stored, issueId, issueKey = null) {
+  const base = initialState(issueId ?? stored?.issueId, issueKey ?? stored?.issueKey ?? null);
+  if (!stored) return base;
+  const steps = {};
+  for (const s of STEPS) {
+    const old = stored.steps?.[s.id] ?? {};
+    steps[s.id] = { ...base.steps[s.id], ...old, fields: { ...base.steps[s.id].fields, ...(old.fields ?? {}) } };
+  }
+  return { ...base, ...stored, steps, startedAt: stored.startedAt ?? stored.updatedAt ?? null };
+}
+
+// Fishbone (6M) cause categories for the Pareto chart. Processes and things, never people.
+export const CAUSE_CATEGORIES = ['Method', 'Machine', 'Material', 'Measurement', 'Environment', 'Management system'];
 
 // Labels arrive as strings (Jira REST) or objects ({ name }) depending on the caller.
 export function isSafetyRelated(labels) {
@@ -53,14 +68,14 @@ export function reducer(state, action) {
       if (step.approvedBy) throw new Error(`${action.stepId} is approved; reopen it before editing`);
       if (!(action.field in step.fields)) throw new Error(`Unknown field ${action.field}`);
       const fields = { ...step.fields, [action.field]: String(action.value ?? '') };
-      return { ...state, steps: { ...state.steps, [action.stepId]: { ...step, fields } }, updatedAt: now };
+      return { ...state, steps: { ...state.steps, [action.stepId]: { ...step, fields } }, startedAt: state.startedAt ?? now, updatedAt: now };
     }
     case 'approve': {
       if (!action.accountId) throw new Error('A human approver (accountId) is required');
       const blocked = STEPS.slice(0, stepIndex(action.stepId)).find((s) => !state.steps[s.id].approvedBy);
       if (blocked) throw new Error(`Approve ${blocked.id} first`);
       const steps = { ...state.steps, [action.stepId]: { ...step, approvedBy: action.accountId, approvedAt: now } };
-      const next = { ...state, steps, updatedAt: now };
+      const next = { ...state, steps, startedAt: state.startedAt ?? now, updatedAt: now };
       return { ...next, closed: currentStep(next) === null };
     }
     case 'reopen': {

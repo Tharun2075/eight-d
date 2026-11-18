@@ -8,6 +8,7 @@
   "scripts": {
     "build": "npm --prefix static/eightd-ui run build",
     "test": "node --test test/*.test.js",
+    "validate": "node scripts/validate-manifest.cjs",
     "lint": "forge lint"
   },
   "dependencies": {
