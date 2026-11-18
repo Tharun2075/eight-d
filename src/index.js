@@ -5,7 +5,7 @@ import api, { route, assumeTrustedRoute } from '@forge/api';
 import { kvs, WhereConditions } from '@forge/kvs';
 import * as svc from './services.js';
 import {
-  normalize, reducer, storageKey, isSafetyRelated, progress, currentStep, draft5W2H, SAFETY_MESSAGE,
+  normalize, reducer, storageKey, isSafetyRelated, draft5W2H, SAFETY_MESSAGE,
 } from './lib/eightd.js';
 
 const ISSUE_FIELDS = 'summary,description,labels,components,created,reporter';
@@ -19,34 +19,6 @@ async function readIssue(issueIdOrKey) {
 
 async function loadState(issueId, issueKey) {
   return normalize(await kvs.get(storageKey(issueId)), issueId, issueKey);
-}
-
-// Keeps only the work items the signed-in user may browse (JQL search runs as the user).
-async function visibleIds(ids) {
-  const visible = new Set();
-  for (let i = 0; i < ids.length; i += 100) {
-    const res = await api.asUser().requestJira(route`/rest/api/3/search/jql`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jql: `id in (${ids.slice(i, i + 100).map(Number).join(',')})`, fields: ['id'], maxResults: 100 }),
-    });
-    if (res.ok) for (const it of (await res.json()).issues ?? []) visible.add(String(it.id));
-  }
-  return visible;
-}
-
-async function listOpen() {
-  const out = [];
-  let cursor;
-  do {
-    const page = await kvs.query().where('key', WhereConditions.beginsWith('8d:')).limit(50).cursor(cursor).getMany();
-    for (const { value } of page.results) {
-      if (!value.closed) out.push({ issueKey: value.issueKey, issueId: value.issueId, current: currentStep(value), ...progress(value) });
-    }
-    cursor = page.nextCursor;
-  } while (cursor);
-  const visible = await visibleIds(out.map((o) => o.issueId));
-  return out.filter((o) => visible.has(String(o.issueId)));
 }
 
 async function canEdit(issueId) {
@@ -90,7 +62,7 @@ resolver.define('draftD2', async ({ context }) => {
   return { state };
 });
 
-resolver.define('listOpen', async () => ({ items: await listOpen() }));
+resolver.define('overview', async () => svc.overview(await makeIo()));
 
 // The io object for services.js: every request runs as the signed-in user (asUser).
 // Paths are built in services.js with encodeURIComponent on every variable part.
@@ -200,7 +172,7 @@ export async function generateReportAction(payload) {
 
 // Rovo action and MCP tool: open 8Ds with progress.
 export async function listOpen8Ds() {
-  return { items: await listOpen() };
+  return { items: (await svc.overview(await makeIo())).items };
 }
 
 // Teamwork Graph connector stub: no external source yet, so connections are accepted

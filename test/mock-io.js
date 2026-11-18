@@ -23,6 +23,8 @@ export function mockIo({ issues = [], pages = [], visibleProjects = null, perms 
       const pick = (s) => [...s.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
       let found = issues.filter(visible);
       if (keyIn) found = found.filter((i) => pick(keyIn[1]).includes(i.key));
+      const idIn = body.jql.match(/^id in \(([^)]*)\)/);
+      if (idIn) found = found.filter((i) => idIn[1].split(',').includes(String(i.id)));
       if (labelIn) found = found.filter((i) => (i.fields.labels ?? []).some((l) => pick(labelIn[1]).includes(l)));
       return { issues: found };
     }

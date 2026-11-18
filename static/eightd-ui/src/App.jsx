@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { invoke, view } from '@forge/bridge';
+import { paretoGeometry } from '../../../src/lib/overview.js';
 import { SimilarCard, FiveWhyCard, CorrectiveActionsCard, ReportCard } from './Assist.jsx';
 import { STEPS, progress, currentStep, SAFETY_MESSAGE } from '../../../src/lib/eightd.js';
 
@@ -98,26 +99,56 @@ function Panel() {
 }
 
 function Overview() {
-  const [items, setItems] = useState(null);
+  const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  useEffect(() => { invoke('listOpen').then((r) => setItems(r.items)).catch((e) => setError(e.message)); }, []);
+  useEffect(() => { invoke('overview').then(setData).catch((e) => setError(e.message)); }, []);
   if (error) return <p className="ed-wrap ed-error">{error}</p>;
-  if (!items) return <p className="ed-wrap ed-muted">Loading...</p>;
+  if (!data) return <p className="ed-wrap ed-muted">Loading...</p>;
+  const { items, pareto } = data;
   return (
     <div className="ed-wrap">
       <h2>Open 8Ds</h2>
       {items.length === 0 ? <p className="ed-muted">No open 8D reports.</p> : (
         <table className="ed-table">
-          <thead><tr><th>Work item</th><th>Current step</th><th>Progress</th></tr></thead>
+          <thead><tr><th>Work item</th><th>Current step</th><th>Days open</th><th>Progress</th></tr></thead>
           <tbody>
             {items.map((i) => (
-              <tr key={i.issueId}><td>{i.issueKey ?? i.issueId}</td><td>{i.current}</td><td>{i.percent}%</td></tr>
+              <tr key={i.issueId}>
+                <td>{i.issueKey ?? i.issueId}</td>
+                <td>{i.current}{i.lateOnD5 ? <span className="ed-late">Late on D5</span> : i.late ? <span className="ed-late">Late on {i.late}</span> : null}</td>
+                <td>{i.daysOpen ?? ''}</td>
+                <td>{i.percent}%</td>
+              </tr>
             ))}
           </tbody>
         </table>
       )}
+      <h2>Root causes (Pareto)</h2>
+      <Pareto rows={pareto} />
       <SeedCard />
     </div>
+  );
+}
+
+// Plain SVG Pareto: bars per approved D4 cause category, line for the cumulative share.
+function Pareto({ rows }) {
+  if (!rows.length) return <p className="ed-muted">No approved root causes yet.</p>;
+  const g = paretoGeometry(rows);
+  const base = g.height - g.pad;
+  return (
+    <svg className="ed-pareto" viewBox={`0 0 ${g.width} ${g.height + 28}`} role="img"
+      aria-label={rows.map((r) => `${r.category} ${r.count}`).join(', ')}>
+      <line x1={g.pad} y1={base} x2={g.width - g.pad} y2={base} className="ed-pareto-axis" />
+      {g.bars.map((b) => (
+        <g key={b.category}>
+          <rect x={b.x} y={b.y} width={b.w} height={b.h} className="ed-pareto-bar"><title>{`${b.category}: ${b.count}`}</title></rect>
+          <text x={b.cx} y={b.y - 4} textAnchor="middle" className="ed-pareto-text">{b.count}</text>
+          <text x={b.cx} y={base + 14} textAnchor="middle" className="ed-pareto-text">{b.category}</text>
+          <text x={b.cx} y={base + 26} textAnchor="middle" className="ed-pareto-muted">{b.cumulative}%</text>
+        </g>
+      ))}
+      <polyline points={g.line} className="ed-pareto-line" />
+    </svg>
   );
 }
 

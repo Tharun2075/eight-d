@@ -15,6 +15,7 @@ import { scaffoldFiveWhy } from './lib/fivewhy.js';
 import { correctiveActionDrafts, buildIssuePayload, buildLinkPayload } from './lib/actions.js';
 import { buildReport } from './lib/report.js';
 import { demoCases, rootCausePage } from './lib/seed.js';
+import { overviewRow, paretoCauses } from './lib/overview.js';
 
 const ISSUE_FIELDS = 'summary,description,labels,components,created,reporter,status,project,issuelinks';
 const q = encodeURIComponent;
@@ -200,4 +201,22 @@ export async function seedDemo(io, { projectKey, spaceId, now = Date.now() } = {
     }
   }
   return { created, keys: Object.values(done.cases).map((r) => r.key), error: null };
+}
+
+// Keeps only the records whose work item the signed-in user may browse (the JQL runs as the user).
+export async function visibleRecords(io, records) {
+  const visible = new Set();
+  const ids = records.map((r) => Number(r.issueId)).filter(Number.isFinite);
+  for (let i = 0; i < ids.length; i += 100) {
+    const found = await searchJql(io, `id in (${ids.slice(i, i + 100).join(',')})`, ['id'], 100).catch(() => []);
+    for (const it of found) visible.add(String(it.id));
+  }
+  return records.filter((r) => visible.has(String(r.issueId)));
+}
+
+// Overview: open 8Ds with late flags, plus the Pareto of approved root causes (closed and open).
+export async function overview(io, now = Date.now()) {
+  const records = await visibleRecords(io, (await io.store.list('8d:')).map((r) => normalize(r)));
+  const items = records.filter((r) => !r.closed).map((r) => overviewRow(r, now));
+  return { items, pareto: paretoCauses(records), closedCount: records.filter((r) => r.closed).length };
 }

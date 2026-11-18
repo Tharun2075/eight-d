@@ -56,3 +56,11 @@ table.ed-table { border-collapse: collapse; width: 100%; }
 .ed-row { padding: 4px 0; border-top: 1px solid var(--ed-border); }
 .ed-cites { display: flex; gap: var(--ed-gap); flex-wrap: wrap; font-size: 12px; }
 .ed-cites a { color: var(--ed-text); }
+
+.ed-late { margin-left: var(--ed-gap); padding: 1px 6px; border: 1px solid var(--ed-warn-border); border-radius: var(--ed-radius); background: var(--ed-warn-bg); color: var(--ed-warn-text); font-size: 12px; }
+.ed-pareto { width: 100%; max-width: 640px; }
+.ed-pareto-bar { fill: var(--ed-accent); }
+.ed-pareto-line { fill: none; stroke: var(--ed-warn-border); stroke-width: 2; }
+.ed-pareto-axis { stroke: var(--ed-border); }
+.ed-pareto-text { fill: var(--ed-text); font-size: 11px; font-family: var(--ed-font); }
+.ed-pareto-muted { fill: var(--ed-text-muted); font-size: 10px; font-family: var(--ed-font); }
