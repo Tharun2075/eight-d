@@ -67,7 +67,7 @@ resolver.define('dispatch', async ({ payload, context }) => {
   const { id, key } = context.extension.issue;
   const { type, stepId, field, value } = payload?.action ?? {};
   if (!['setField', 'approve', 'reopen'].includes(type)) throw new Error(`Unknown action ${type}`);
-  if (type !== 'setField' && !(await canEdit(id))) throw new Error('You need edit permission on this work item');
+  if (!(await canEdit(id))) throw new Error('You need edit permission on this work item');
   const action = { type, stepId, field, value, accountId: context.accountId, at: new Date().toISOString() };
   const next = reducer(await loadState(id, key), action);
   await kvs.set(storageKey(id), next);
@@ -77,6 +77,7 @@ resolver.define('dispatch', async ({ payload, context }) => {
 // Fills D2 with a 5W2H draft; fields are only set, never approved.
 resolver.define('draftD2', async ({ context }) => {
   const { id, key } = context.extension.issue;
+  if (!(await canEdit(id))) throw new Error('You need edit permission on this work item');
   const issue = await readIssue(id);
   if (isSafetyRelated(issue.fields?.labels)) throw new Error(SAFETY_MESSAGE);
   const draft = draft5W2H(issue);
