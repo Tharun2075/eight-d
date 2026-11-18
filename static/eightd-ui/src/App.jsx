@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { invoke, view } from '@forge/bridge';
+import { SimilarCard, FiveWhyCard, CorrectiveActionsCard, ReportCard } from './Assist.jsx';
 import { STEPS, progress, currentStep, SAFETY_MESSAGE } from '../../../src/lib/eightd.js';
 
 const LABELS = {
@@ -84,6 +85,13 @@ function Panel() {
         )}
       </div>
       {approved && <p className="ed-muted">Approved {data.approvedAt?.slice(0, 10)} by a team member.</p>}
+      {['D2', 'D3', 'D4'].includes(active) && <SimilarCard />}
+      {active === 'D4' && <FiveWhyCard approved={approved} onState={setState} />}
+      {(active === 'D5' || active === 'D6') && (
+        <CorrectiveActionsCard state={state} onReopen={() => dispatch({ type: 'reopen', stepId: 'D5' })}
+          onState={() => invoke('getState').then((r) => setState(r.state)).catch(() => {})} />
+      )}
+      {active === 'D8' && <ReportCard state={state} />}
       <p className="ed-muted">Assistive tool: a person reviews and approves every step.</p>
     </div>
   );

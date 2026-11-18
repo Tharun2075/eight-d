@@ -50,3 +50,9 @@ body { margin: 0; background: var(--ed-bg); color: var(--ed-text); font: 14px/1.
 .ed-error { color: var(--ed-warn-text); background: var(--ed-warn-bg); padding: 4px var(--ed-gap); border-radius: var(--ed-radius); }
 table.ed-table { border-collapse: collapse; width: 100%; }
 .ed-table th, .ed-table td { border-bottom: 1px solid var(--ed-border); padding: 4px var(--ed-gap); text-align: left; }
+.ed-card { border: 1px solid var(--ed-border); background: var(--ed-surface); border-radius: var(--ed-radius); padding: var(--ed-gap); margin: var(--ed-gap) 0; }
+.ed-card h4 { margin: 0 0 var(--ed-gap); }
+.ed-card select { width: 100%; margin-bottom: 4px; background: var(--ed-bg); color: var(--ed-text); border: 1px solid var(--ed-border); border-radius: var(--ed-radius); font: inherit; }
+.ed-row { padding: 4px 0; border-top: 1px solid var(--ed-border); }
+.ed-cites { display: flex; gap: var(--ed-gap); flex-wrap: wrap; font-size: 12px; }
+.ed-cites a { color: var(--ed-text); }
