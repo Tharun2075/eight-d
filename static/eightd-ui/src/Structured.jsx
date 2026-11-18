@@ -11,20 +11,26 @@ import SectionMessage from '@atlaskit/section-message';
 import { CAUSE_KINDS, CAUSE_STATUSES, containmentClock, gateProblems } from '../../../src/lib/eightd.js';
 import { opts } from './ui.jsx';
 
+// [lozenge appearance, short lozenge text, long explanation shown under it and as the tooltip]
 const CLOCK = {
-  'not-started': ['default', 'Containment clock not started'],
-  'on-time': ['inprogress', 'Containment due within 24 h'],
-  'at-risk': ['moved', 'Containment past 24 h target'],
-  late: ['removed', 'Containment late (over 48 h)'],
-  'contained-on-time': ['success', 'Contained within 24 h'],
-  'contained-at-risk': ['moved', 'Contained, past 24 h'],
-  'contained-late': ['removed', 'Contained late (over 48 h)'],
+  'not-started': ['default', 'Not started', 'Containment clock not started'],
+  'on-time': ['inprogress', 'Open', 'Containment due within 24 h'],
+  'at-risk': ['moved', 'At risk', 'Containment past the 24 h target'],
+  late: ['removed', 'Late', 'Containment late (over 48 h)'],
+  'contained-on-time': ['success', 'Met', 'Contained within 24 h'],
+  'contained-at-risk': ['moved', 'Met late', 'Contained, past the 24 h target'],
+  'contained-late': ['removed', 'Late', 'Contained late (over 48 h)'],
 };
 
 export function ContainmentClock({ state, clock }) {
   const c = clock ?? containmentClock(state);
-  const [appearance, text] = CLOCK[c.status] ?? CLOCK['not-started'];
-  return <Lozenge appearance={appearance}>{c.hours === null ? text : `${text} · ${c.hours} h`}</Lozenge>;
+  const [appearance, short, long] = CLOCK[c.status] ?? CLOCK['not-started'];
+  return (
+    <span className="ed-clock" title={long}>
+      <Lozenge appearance={appearance}>{c.hours === null ? short : `${short} · ${c.hours} h`}</Lozenge>
+      <span className="ed-clock-note">{long}</span>
+    </span>
+  );
 }
 
 // Shows what still blocks Approve; the Approve button stays off while this list is not empty.

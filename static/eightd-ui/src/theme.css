@@ -29,3 +29,5 @@ body { background: var(--ds-surface); color: var(--ds-text); font: var(--ds-font
 .ed-item { display: flex; flex-direction: column; gap: var(--ds-space-025); min-width: 0; max-width: 320px; }
 .ed-summary { color: var(--ds-text-subtle); font: var(--ds-font-body-small); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ed-title { overflow-wrap: anywhere; }
+.ed-clock { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-025); }
+.ed-clock-note { color: var(--ds-text-subtlest); font: var(--ds-font-body-small); }
