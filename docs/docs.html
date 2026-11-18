@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Docs | Eight-D for Jira</title>
+<meta name="description" content="Set up and use Eight-D: 8D panel, overview, Rovo coach and MCP tools.">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+<a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="32" height="32">Eight-D for Jira</a>
+<nav class="links" aria-label="Site"><a href="index.html">Home</a><a href="docs.html" aria-current=page>Docs</a><a href="support.html">Support</a><a href="privacy.html">Privacy</a><a href="security.html">Security</a><a href="terms.html">Terms</a></nav>
+</div></header>
+<main><div class="wrap">
+
+<h1>Docs</h1>
+<p class="lead">How to set up Eight-D and run an 8D with it.</p>
+<h2>Install</h2>
+<p>Install Eight-D on your Jira Cloud site from the Atlassian Marketplace (listing coming soon). A site admin approves the permissions listed on the <a href="security.html">security page</a>.</p>
+<h2>Run an 8D</h2>
+<ol>
+<li>Open the Jira work item that holds the problem (a customer complaint or a nonconformance).</li>
+<li>Find the <strong>8D</strong> panel and press <strong>Open full 8D</strong>.</li>
+<li>Work through the steps in order: D1 team, D2 problem (5W2H), D3 containment, D4 root cause, D5 corrective actions, D6 implement and validate, D7 prevent recurrence, D8 close.</li>
+<li>Press <strong>Approve</strong> when a step is done. The approver and date are stored. Reopening a step reopens every later one.</li>
+</ol>
+<p>The <strong>8D Overview</strong> page (Apps menu) lists every open 8D you can see, with the current step, the D3 containment clock and days open. On an empty site it offers demo data for synthetic parts.</p>
+<h2>8D Coach (Rovo)</h2>
+<p>Ask the <strong>8D Coach</strong> agent in Rovo, or press <strong>Draft with 8D Coach</strong> in the panel. It can draft the D2 problem statement, scaffold a 5-Why, find similar nonconformances, preview corrective actions and a customer report, and list open 8Ds. It only fills text fields with a draft: a person reviews, edits and approves.</p>
+<div class="note"><strong>Safety:</strong> if a work item has the label <code>safety</code>, the panel shows "Safety-related: notify your quality manager", the automation buttons are off, and the Coach drafts nothing.</div>
+<h2>Use the tools from Claude or another MCP client</h2>
+<p>Eight-D's six read-only tools are published through Atlassian's MCP server.</p>
+<ol>
+<li>A site admin turns on <strong>Expose tools</strong> for Eight-D on each product install (Jira) in the app's admin settings.</li>
+<li>Add the server to your client, for example Claude Code:
+<pre><code>claude mcp add --transport http eightd https://mcp.atlassian.com/forge/f753cecd-d0ad-48d6-a7a0-58834ff31188</code></pre></li>
+<li>Sign in with your Atlassian account when asked. The tools see only what your Jira permissions allow.</li>
+</ol>
+<h2>Teamwork Graph connector</h2>
+<p>On by default. It writes part, machine and supplier-lot objects to Teamwork Graph so similar cases can be found across your site. 8D status objects are written only when <code>TG_STATUS_PUBLIC=true</code>, because connector objects are visible site-wide. If the graph is off, empty or fails, similar-case search falls back to Jira links and Confluence search.</p>
+<h2>Build it yourself</h2>
+<p>The source is on <a href="https://github.com/Tharun2075/eight-d">GitHub</a>. You need Node 22+, the Forge CLI and an Atlassian developer account.</p>
+<pre><code>npm install
+npm --prefix static/eightd-ui install
+npm run build
+npm test
+forge register
+forge lint
+forge deploy
+forge install --product jira</code></pre>
+<h2>Data</h2>
+<p>8D records live in Forge storage in your site, one per work item. No data leaves Atlassian's platform. Details: <a href="privacy.html">privacy policy</a>.</p>
+
+</div></main>
+<footer><div class="wrap">
+<span>&copy; 2026 THATCHED Ltd</span>
+<a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="security.html">Security</a><a href="support.html">Support</a>
+<a href="https://github.com/Tharun2075/eight-d">Source on GitHub</a>
+</div></footer>
+</body>
+</html>
