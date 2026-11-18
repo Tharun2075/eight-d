@@ -86,7 +86,8 @@ async function call(product, method, path, body) {
     method, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const err = new Error(`${product} returned ${res.status} for ${method} ${path.split('?')[0]}`);
+    const detail = (await res.text().catch(() => '')).slice(0, 300);
+    const err = new Error(`${product} returned ${res.status} for ${method} ${path.split('?')[0]}${detail ? `: ${detail}` : ''}`);
     err.status = res.status;
     throw err;
   }
