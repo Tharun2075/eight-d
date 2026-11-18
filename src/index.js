@@ -1,6 +1,6 @@
 // Eight-D Forge backend: resolver for the Custom UI, Rovo actions, Teamwork Graph connector.
 // Data stays in Forge hosted storage (KVS). No external egress.
-import Resolver from '@forge/resolver';
+import ResolverModule from '@forge/resolver';
 import api, { route, assumeTrustedRoute } from '@forge/api';
 import { kvs, WhereConditions } from '@forge/kvs';
 import * as svc from './services.js';
@@ -27,6 +27,8 @@ async function canEdit(issueId) {
   return res.ok && Boolean((await res.json()).permissions?.EDIT_ISSUES?.havePermission);
 }
 
+// "type": "module" makes a CommonJS default import the whole exports object; take .default.
+const Resolver = ResolverModule.default ?? ResolverModule;
 const resolver = new Resolver();
 
 resolver.define('getState', async ({ context }) => {
