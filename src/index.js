@@ -45,7 +45,7 @@ async function issueOf(context, payload) {
 resolver.define('getState', async ({ payload, context }) => {
   const { id, key } = await issueOf(context, payload);
   const issue = await readIssue(id);
-  return { state: await loadState(id, key), safety: isSafetyRelated(issue.fields?.labels) };
+  return { state: await loadState(id, key), safety: isSafetyRelated(issue.fields?.labels), summary: issue.fields?.summary ?? '' };
 });
 
 // One reducer action per call. Only known fields pass; the approver is always the

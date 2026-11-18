@@ -9,6 +9,7 @@ import DynamicTable from '@atlaskit/dynamic-table';
 import Tabs, { Tab, TabList } from '@atlaskit/tabs';
 import SectionMessage from '@atlaskit/section-message';
 import EmptyState from '@atlaskit/empty-state';
+import ArrowLeftIcon from '@atlaskit/icon/core/arrow-left';
 import { paretoGeometry } from '../../../src/lib/overview.js';
 import { SimilarCard, FiveWhyCard, CorrectiveActionsCard, ReportCard } from './Assist.jsx';
 import { Loading, ErrorMsg, Saved, Empty } from './ui.jsx';
@@ -44,16 +45,19 @@ export default function App() {
   if (ctx.moduleKey !== 'eightd-overview') return <Panel ctx={ctx} />;
   const key = KEY_RE.exec(path)?.[1];
   const go = (to) => (history ? history.push(to) : null);
-  if (key) {
-    return (
-      <div className="ed-page ed-col">
-        <div><Button appearance="subtle" onClick={() => go('/')}>Back to open 8Ds</Button></div>
-        <h1>8D for {key}</h1>
-        <Workspace issueKey={key} />
-      </div>
-    );
-  }
+  if (key) return <FullPage issueKey={key} back={() => go('/')} />;
   return <Overview open={(k) => go(`/issue/${k}`)} />;
+}
+
+function FullPage({ issueKey, back }) {
+  const [summary, setSummary] = useState('');
+  return (
+    <div className="ed-page ed-col">
+      <div><Button appearance="subtle" iconBefore={ArrowLeftIcon} onClick={back}>Open 8Ds</Button></div>
+      <h1 className="ed-title">{issueKey}{summary ? ` · ${summary}` : ''}</h1>
+      <Workspace issueKey={issueKey} onSummary={setSummary} />
+    </div>
+  );
 }
 
 // Compact issue panel: status, current step, D3 clock and a link to the full-page workspace.
@@ -82,7 +86,7 @@ function Panel({ ctx }) {
 const APP_ID = 'f753cecd-d0ad-48d6-a7a0-58834ff31188';
 
 // The full 8D form: D1-D8 tabs, fields, approve/reopen and the assist cards.
-function Workspace({ issueKey }) {
+function Workspace({ issueKey, onSummary }) {
   const [state, setState] = useState(null);
   const [safety, setSafety] = useState(false);
   const [active, setActive] = useState('D1');
@@ -94,6 +98,7 @@ function Workspace({ issueKey }) {
   useEffect(() => {
     invoke('getState', base).then((r) => {
       setState(r.state); setSafety(r.safety); setActive(currentStep(r.state) ?? 'D8');
+      onSummary?.(r.summary ?? '');
     }).catch((e) => setError(e.message));
   }, [issueKey]);
 
@@ -175,7 +180,12 @@ function Overview({ open }) {
   const rows = items.map((i) => ({
     key: String(i.issueId),
     cells: [
-      { key: 'k', content: i.issueKey ? <Button appearance="link" spacing="none" onClick={() => open(i.issueKey)}>{i.issueKey}</Button> : i.issueId },
+      { key: 'k', content: (
+        <div className="ed-item">
+          {i.issueKey ? <Button appearance="link" spacing="none" onClick={() => open(i.issueKey)}>{i.issueKey}</Button> : i.issueId}
+          {i.summary && <span className="ed-summary" title={i.summary}>{i.summary}</span>}
+        </div>
+      ) },
       { key: 's', content: <span className="ed-row">{i.current}{i.lateOnD5 ? <Lozenge appearance="removed">Late on D5</Lozenge> : i.late ? <Lozenge appearance="removed">Late on {i.late}</Lozenge> : null}</span> },
       { key: 'c', content: i.containment ? <ContainmentClock clock={i.containment} /> : '' },
       { key: 'l', content: <Deadlines list={i.deadlines ?? []} /> },

@@ -282,19 +282,23 @@ export async function moveToDone(io, key) {
 }
 
 // Keeps only the records whose work item the signed-in user may browse (the JQL runs as the user).
-export async function visibleRecords(io, records) {
+export async function visibleRecords(io, records, summaries = new Map()) {
   const visible = new Set();
   const ids = records.map((r) => Number(r.issueId)).filter(Number.isFinite);
   for (let i = 0; i < ids.length; i += 100) {
-    const found = await searchJql(io, `id in (${ids.slice(i, i + 100).join(',')})`, ['id'], 100).catch(() => []);
-    for (const it of found) visible.add(String(it.id));
+    const found = await searchJql(io, `id in (${ids.slice(i, i + 100).join(',')})`, ['id', 'summary'], 100).catch(() => []);
+    for (const it of found) {
+      visible.add(String(it.id));
+      summaries.set(String(it.id), it.fields?.summary ?? '');
+    }
   }
   return records.filter((r) => visible.has(String(r.issueId)));
 }
 
 // Overview: open 8Ds with late flags, plus the Pareto of approved root causes (closed and open).
 export async function overview(io, now = Date.now()) {
-  const records = await visibleRecords(io, (await io.store.list('8d:')).map((r) => normalize(r)));
-  const items = records.filter((r) => !r.closed).map((r) => overviewRow(r, now));
+  const summaries = new Map();
+  const records = await visibleRecords(io, (await io.store.list('8d:')).map((r) => normalize(r)), summaries);
+  const items = records.filter((r) => !r.closed).map((r) => ({ ...overviewRow(r, now), summary: summaries.get(String(r.issueId)) ?? '' }));
   return { items, pareto: paretoCauses(records), closedCount: records.filter((r) => r.closed).length };
 }

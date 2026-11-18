@@ -45,6 +45,7 @@ test('overview service returns only visible records with late flags and pareto',
   assert.equal(r.items.length, 3);
   assert.equal(r.items.filter((x) => x.lateOnD5).length, 1);
   assert.equal(r.pareto[0].category, 'Machine');
+  for (const it of r.items) assert.equal(it.summary, issues.find((x) => x.key === it.issueKey).fields.summary);
 });
 
 test('overview row carries the D3 containment clock and the 24h / 5d / 30d customer deadlines', () => {
