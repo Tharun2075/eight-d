@@ -19,7 +19,7 @@ export function fillGates(s) {
   return s;
 }
 
-export function mockIo({ issues = [], pages = [], visibleProjects = null, perms = { EDIT_ISSUES: true }, users = {}, graph } = {}) {
+export function mockIo({ issues = [], pages = [], visibleProjects = null, perms = { EDIT_ISSUES: true }, users = {}, graph, transitions = [{ id: '11', to: { statusCategory: { key: 'indeterminate' } } }, { id: '31', to: { statusCategory: { key: 'done' } } }] } = {}) {
   const store = new Map();
   const calls = [];
   const visible = (it) => !visibleProjects || visibleProjects.includes(it.fields.project.key);
@@ -29,6 +29,9 @@ export function mockIo({ issues = [], pages = [], visibleProjects = null, perms 
   const jira = async (method, path, body) => {
     calls.push({ product: 'jira', method, path, body });
     const p = path.split('?')[0];
+    if (method === 'GET' && p.endsWith('/transitions')) return { transitions };
+    if (method === 'GET' && /^\/rest\/api\/3\/issue\/QA-\d+$/.test(p) && !byKey(p.split('/')[5])) return { key: p.split('/')[5], fields: { status: { statusCategory: { key: 'new' } } } };
+    if (method === 'PUT' && p.startsWith('/rest/api/3/issue/')) return {};
     if (method === 'GET' && p.startsWith('/rest/api/3/issue/')) {
       const it = byKey(decodeURIComponent(p.split('/')[5]));
       if (!it || !visible(it)) throw Object.assign(new Error('404'), { status: 404 });

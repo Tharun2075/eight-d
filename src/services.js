@@ -200,7 +200,11 @@ export async function seedDemo(io, { projectKey, spaceId, now = Date.now(), cloc
   const created = { issues: 0, pages: 0 };
   const labelErrors = [];
   const cases = demoCases(now);
-  const isDone = (c) => { const r = done.cases[c.ref]; return !!r?.key && (!c.rootCause || !spaceId || (!!r.pageId && !!r.labelled)); };
+  // `described` and `status` were added later: items from an older seed get them on the next press.
+  const isDone = (c) => {
+    const r = done.cases[c.ref];
+    return !!r?.key && !!r.described && (!c.closed || !!r.status) && (!c.rootCause || !spaceId || (!!r.pageId && !!r.labelled));
+  };
   let more = false;
   for (const c of cases) {
     if (isDone(c)) continue;
@@ -208,14 +212,23 @@ export async function seedDemo(io, { projectKey, spaceId, now = Date.now(), cloc
     const rec = done.cases[c.ref] ?? {};
     if (!rec.key) {
       const res = await io.jira('POST', '/rest/api/3/issue', {
-        fields: { project: { id: String(project.id) }, issuetype: { name: 'Task' }, summary: c.summary, labels: c.labels },
+        fields: { project: { id: String(project.id) }, issuetype: { name: 'Task' }, summary: c.summary, description: c.description, labels: c.labels },
       });
-      Object.assign(rec, { id: String(res.id), key: res.key });
+      Object.assign(rec, { id: String(res.id), key: res.key, described: true });
       await io.store.set(storageKey(rec.id), { ...c.state, issueId: rec.id, issueKey: rec.key });
       created.issues += 1;
     }
     done.cases[c.ref] = rec;
     await io.store.set('seed:demo', done);
+    if (!rec.described) {
+      await io.jira('PUT', `/rest/api/3/issue/${q(rec.key)}`, { fields: { description: c.description } });
+      rec.described = true;
+      await io.store.set('seed:demo', done);
+    }
+    if (c.closed && !rec.status) {
+      rec.status = await moveToDone(io, rec.key);
+      await io.store.set('seed:demo', done);
+    }
     if (c.rootCause && spaceId) {
       const pg = rootCausePage(rec.key, c);
       if (!rec.pageId) {
@@ -234,10 +247,31 @@ export async function seedDemo(io, { projectKey, spaceId, now = Date.now(), cloc
     }
   }
   const keys = Object.values(done.cases).map((r) => r.key).filter(Boolean);
+  const noDone = Object.values(done.cases).filter((r) => r.status === 'none').map((r) => r.key);
+  const warnings = [
+    labelErrors.length ? `Pages saved, but labels could not be added (${labelErrors[0]})` : '',
+    noDone.length ? `No transition to a Done status in this project's workflow, so ${noDone.join(', ')} stay open in Jira (the 8D itself is closed).` : '',
+  ].filter(Boolean);
+  // Finished: push the records to Teamwork Graph when a connection exists (best effort, never fails the seed).
+  let graph = null;
+  if (!more && io.graphSync) graph = await io.graphSync().catch((e) => ({ error: e.message }));
   return {
     more, created, keys, done: cases.filter((c) => done.cases[c.ref]?.key).length, total: cases.length, error: null,
-    warning: labelErrors.length ? `Pages saved, but labels could not be added (${labelErrors[0]})` : null,
+    warning: warnings.join(' ') || null, graph,
   };
+}
+
+// Moves a work item to a status in the Done category with the first transition that leads there.
+// Returns 'moved', 'already' (it is in Done) or 'none' (the workflow has no such transition).
+export async function moveToDone(io, key) {
+  const { transitions = [] } = await io.jira('GET', `/rest/api/3/issue/${q(key)}/transitions`);
+  const t = transitions.find((x) => x.to?.statusCategory?.key === 'done');
+  if (t) {
+    await io.jira('POST', `/rest/api/3/issue/${q(key)}/transitions`, { transition: { id: String(t.id) } });
+    return 'moved';
+  }
+  const it = await io.jira('GET', `/rest/api/3/issue/${q(key)}?fields=status`);
+  return it.fields?.status?.statusCategory?.key === 'done' ? 'already' : 'none';
 }
 
 // Keeps only the records whose work item the signed-in user may browse (the JQL runs as the user).

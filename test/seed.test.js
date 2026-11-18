@@ -136,3 +136,52 @@ test('seedDemo: label 401 still saves pageId, shows a warning, and a rerun adds 
   assert.equal(posts.length, 6);
   assert.ok(posts.every((c) => c.path.endsWith('/label')));
 });
+
+test('seed: every work item gets an ADF complaint description (who, how many, lot, date)', () => {
+  const now = Date.parse('2026-11-18');
+  for (const c of demoCases(now)) {
+    assert.equal(c.description.type, 'doc');
+    assert.equal(c.description.version, 1);
+    const text = c.description.content.map((p) => p.content[0].text).join(' ');
+    assert.ok(c.description.content.length >= 3, c.ref);
+    assert.match(text, /complaint received \d{4}-\d{2}-\d{2}/);
+    assert.match(text, /lot L-\d{4}/);
+    assert.match(text, /\d+ (affected parts|cracked)/);
+    assert.match(text, /Northfield Stamping/);
+  }
+});
+
+test('seed: closed items move with the done-category transition; a rerun does not repeat it', async () => {
+  const io = mockIo({ perms: { ADMINISTER: true } });
+  await svc.seedDemo(io, { projectKey: 'QA', spaceId: '', now: Date.parse('2026-11-18') });
+  const moves = io.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/transitions'));
+  assert.equal(moves.length, 6);
+  assert.ok(moves.every((m) => m.body.transition.id === '31'));
+  const created = io.calls.filter((c) => c.method === 'POST' && c.path === '/rest/api/3/issue');
+  assert.ok(created.every((c) => c.body.fields.description.type === 'doc'));
+  const before = io.calls.length;
+  await svc.seedDemo(io, { projectKey: 'QA', spaceId: '', now: Date.parse('2026-11-18') });
+  assert.equal(io.calls.slice(before).filter((c) => c.path.endsWith('/transitions')).length, 0);
+});
+
+test('seed: no done-category transition skips the move and says so; older seeds get descriptions', async () => {
+  const io = mockIo({ perms: { ADMINISTER: true }, transitions: [{ id: '11', to: { statusCategory: { key: 'indeterminate' } } }] });
+  await io.store.set('seed:demo', { cases: { 'demo-1': { id: '901', key: 'QA-901' } } }); // seeded before descriptions existed
+  const r = await svc.seedDemo(io, { projectKey: 'QA', spaceId: '', now: Date.parse('2026-11-18') });
+  assert.equal(io.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/transitions')).length, 0);
+  assert.match(r.warning, /No transition to a Done status/);
+  const put = io.calls.find((c) => c.method === 'PUT' && c.path === '/rest/api/3/issue/QA-901');
+  assert.equal(put.body.fields.description.type, 'doc');
+});
+
+test('seed: a finished seed calls graphSync once and returns its raw result; errors do not fail the seed', async () => {
+  const io = mockIo({ perms: { ADMINISTER: true } });
+  let n = 0;
+  io.graphSync = async () => { n += 1; return { sent: 9, batches: 1, rejected: 0 }; };
+  const r = await svc.seedDemo(io, { projectKey: 'QA', spaceId: '', now: Date.parse('2026-11-18') });
+  assert.deepEqual(r.graph, { sent: 9, batches: 1, rejected: 0 });
+  assert.equal(n, 1);
+  io.graphSync = async () => { throw new Error('no connection'); };
+  const r2 = await svc.seedDemo(io, { projectKey: 'QA', spaceId: '', now: Date.parse('2026-11-18') });
+  assert.deepEqual(r2.graph, { error: 'no connection' });
+});

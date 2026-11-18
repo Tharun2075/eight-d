@@ -20,6 +20,21 @@ export const LOTS = [
 const DAY = 86400000;
 const iso = (now, daysAgo) => new Date(now - daysAgo * DAY).toISOString();
 
+// Jira description (ADF): the customer complaint that opened the 8D, one paragraph per sentence group.
+export function complaintAdf(paragraphs) {
+  return { type: 'doc', version: 1, content: paragraphs.map((text) => ({ type: 'paragraph', content: [{ type: 'text', text }] })) };
+}
+
+function complaintFor(c, lot, now) {
+  const date = iso(now, c.daysAgo).slice(0, 10);
+  const count = c.count ?? 40;
+  return complaintAdf([
+    `Customer complaint received ${date} from the assembly customer's incoming quality team: ${c.summary.charAt(0).toLowerCase()}${c.summary.slice(1)}.`,
+    `They found ${count} affected parts from lot ${lot.id} (${PART_FAMILY}, supplied by ${lot.supplier}) and are holding the rest of the delivery.`,
+    `They ask for containment within 24 hours, a root cause within 5 days and a closed 8D within 30 days.`,
+  ]);
+}
+
 // summary, machine, lot, cause category, 5-Why chain, action, started N days ago.
 const CASES = [
   ['Burr on mounting hole of BRKT-200', 'PR-3', 'L-2240', 'Machine',
@@ -155,6 +170,12 @@ function heroCase(now) {
   return {
     ref: 'demo-hero',
     summary: HERO.summary,
+    description: complaintAdf([
+      `Customer complaint received ${iso(now, HERO.daysAgo).slice(0, 10)} from the OEM's incoming inspection: cracks on the outer radius of bend 2 on bracket ${HERO_PART} rev C.`,
+      `Their inspector checked 250 parts from lot ${lot.id} and found 6 cracked under dye-penetrant; 1,800 pieces of the lot were already shipped.`,
+      `The bracket carries a load, so they class this as a safety-relevant defect and have stopped using lot ${lot.id} on their line.`,
+      `They ask ${lot.supplier} for containment within 24 hours, a confirmed root cause within 5 days and a closed 8D within 30 days.`,
+    ]),
     labels: [HERO_PART, DEMO_LABEL, machine.label, lot.label],
     closed: false,
     state: { steps, data: HERO.data, closed: false, startedAt: new Date(start).toISOString(), updatedAt: iso(now, 0) },
@@ -183,6 +204,7 @@ export function demoCases(now = Date.now()) {
     return {
       ref: `demo-${idx + 1}`,
       summary: c.summary,
+      description: complaintFor(c, lot, now),
       labels: [PART_FAMILY, DEMO_LABEL, machine.label, lot.label],
       closed: c.upTo === 'D8',
       state: { steps, ...(c.upTo === 'D8' ? { data: dataFor(c, machine, lot) } : {}), closed: c.upTo === 'D8', startedAt: iso(now, c.daysAgo), updatedAt: iso(now, 0) },
