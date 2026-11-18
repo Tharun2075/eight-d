@@ -9,7 +9,12 @@ Parts:
 - **8D Overview** global page: all open 8Ds you can see.
 - **8D Coach** Rovo agent, with the `draftProblemStatement` action (5W2H draft of D2)
   and `listOpen8Ds`, also exposed through a Rovo MCP stub.
-- **Teamwork Graph connector stub** for part, machine and supplier-lot records.
+- **Rovo actions**: find similar nonconformances, 5-Why scaffold, corrective-action preview,
+  customer report preview. Read-only; writes need a human click in the panel.
+- **Teamwork Graph connector** (`TG_ENABLED`, on unless set to `false`): pushes part, machine and
+  supplier-lot objects; 8D status objects only with `TG_STATUS_PUBLIC=true`, because connector
+  objects are visible site-wide. Similar-case search reads the graph as the user and falls back
+  to Jira links plus Confluence search when the graph is off, empty or fails.
 
 ## Install
 
@@ -46,7 +51,7 @@ Eight-D is an assistant. It never decides anything on its own:
   content of their work items and 8D reports. Eight-D (THATCHED Ltd) acts only
   as a processor, on the customer's instructions, inside Forge.
 - **Scopes:** `read:jira-work`, `storage:app`, and `read/write/delete:object:jira`
-  for the Teamwork Graph connector stub.
+  for the Teamwork Graph connector.
 
 ## Licence
 
