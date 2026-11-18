@@ -27,13 +27,13 @@ export const CHECK_ID = 'part:graph-check';
 
 // Pushes ONE test document and reads it back; returns the raw outcome of both calls so an admin
 // can see exactly what the connector answers (status codes included), never a summary.
-export async function graphCheck({ client, connectionId, env } = {}) {
+export async function graphCheck({ client, connectionId, env, baseUrl = '' } = {}) {
   if (!tgEnabled(env)) return { skipped: 'TG_ENABLED is false' };
   if (!connectionId) return { skipped: 'No connection yet: an admin must connect "Eight-D quality objects" in Atlassian Administration > Connectors first' };
   const c = await loadClient(client);
   if (!c?.setObjects) return { skipped: 'Teamwork Graph client not available' };
   const raw = (r) => ({ success: r?.success ?? false, error: r?.error ?? null, status: r?.originalError?.status ?? r?.originalError?.code ?? null });
-  const obj = buildQualityObject({ kind: 'part', id: 'graph-check', name: 'Eight-D graph check', description: `Test document ${new Date().toISOString()}` });
+  const obj = buildQualityObject({ kind: 'part', id: 'graph-check', name: 'Eight-D graph check', description: `Test document ${new Date().toISOString()}`, url: baseUrl ? `${baseUrl}/jira/apps` : '' });
   const push = await c.setObjects({ objects: [obj], connectionId }).catch((e) => ({ success: false, error: e.message }));
   const read = await c.getObjectByExternalId({ objectType: 'atlassian:document', externalId: CHECK_ID, connectionId }).catch((e) => ({ success: false, error: e.message }));
   return {
@@ -44,25 +44,40 @@ export async function graphCheck({ client, connectionId, env } = {}) {
 }
 
 // Every object is an atlassian:document (the connector accepts only atlassian:* types); the real
-// kind lives in attributes.kind.
-export function buildQualityObject({ kind, id, name, description = '', url = '', attributes = {} }) {
+// kind and its details travel as document labels ("kind:part", "step:D3"). The ingest API rejects
+// an object without updateSequenceNumber, url, createdAt, lastUpdatedAt or permissions, and the
+// document category must be one of its upper-case enum values (live 400s, 2026-11-18).
+export const WORKSPACE = { accessControls: [{ principals: [{ type: 'ATLASSIAN_WORKSPACE' }] }] };
+
+export function buildQualityObject({ kind, id, name, description = '', url = '', attributes = {}, at = new Date().toISOString() }) {
   if (!KINDS.includes(kind)) throw new Error(`Unknown kind ${kind}`);
+  const labels = [`kind:${kind}`, ...Object.entries(attributes).map(([k, v]) => `${k}:${v}`)];
   return {
     schemaVersion: '1.0',
     id: `${kind}:${id}`,
+    updateSequenceNumber: Date.parse(at),
     displayName: name,
     description,
-    url,
-    'atlassian:document': { type: { category: 'DOCUMENT' }, content: { mimeType: 'text/plain', text: `${kind}: ${name}` } },
-    attributes: { kind, ...attributes },
+    url: url || `https://eight-d.invalid/${kind}/${encodeURIComponent(id)}`,
+    createdAt: at,
+    lastUpdatedAt: at,
+    permissions: WORKSPACE,
+    'atlassian:document': {
+      type: { category: 'DOCUMENT', mimeType: 'text/plain' },
+      content: { mimeType: 'text/plain', text: [`${kind}: ${name}`, description, ...labels].filter(Boolean).join('\n') },
+      labels,
+    },
   };
 }
+
+// Reads a label value back ("step" -> "D3"); labels are the only place the kind and details live.
+export const labelOf = (obj, key) => obj['atlassian:document'].labels.find((l) => l.startsWith(`${key}:`))?.slice(key.length + 1);
 
 export function referenceObjects(baseUrl = '') {
   return [
     buildQualityObject({ kind: 'part', id: PART_FAMILY, name: `Part family ${PART_FAMILY}`, url: `${baseUrl}/issues/?jql=labels%3D${PART_FAMILY}` }),
-    ...MACHINES.map((m) => buildQualityObject({ kind: 'machine', id: m.id, name: m.name, attributes: { label: m.label } })),
-    ...LOTS.map((l) => buildQualityObject({ kind: 'supplier-lot', id: l.id, name: `${l.id} from ${l.supplier}`, attributes: { label: l.label } })),
+    ...MACHINES.map((m) => buildQualityObject({ kind: 'machine', id: m.id, name: m.name, url: `${baseUrl}/issues/?jql=labels%3D${m.label}`, attributes: { label: m.label } })),
+    ...LOTS.map((l) => buildQualityObject({ kind: 'supplier-lot', id: l.id, name: `${l.id} from ${l.supplier}`, url: `${baseUrl}/issues/?jql=labels%3D${l.label}`, attributes: { label: l.label } })),
   ];
 }
 

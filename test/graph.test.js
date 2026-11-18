@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initialState, reducer, STEPS } from '../src/lib/eightd.js';
 import {
-  buildQualityObject, referenceObjects, statusObject, pushObjects, syncConnector, makeGraphReader, loadClient, tgEnabled, BATCH, graphCheck, CHECK_ID,
+  buildQualityObject, referenceObjects, statusObject, pushObjects, syncConnector, makeGraphReader, loadClient, tgEnabled, labelOf, BATCH, graphCheck, CHECK_ID,
 } from '../src/graph.js';
 import * as svc from '../src/services.js';
 import { mockIo, issue, fillGates } from './mock-io.js';
@@ -16,9 +16,9 @@ const fakeClient = () => {
 
 test('graph objects: part, 3 machines, lots and 8D status are atlassian:document with a kind', () => {
   const objs = referenceObjects('https://x.atlassian.net');
-  const kinds = objs.map((o) => o.attributes.kind);
+  const kinds = objs.map((o) => labelOf(o, 'kind'));
   assert.equal(kinds.filter((k) => k === 'part').length, 1);
-  assert.deepEqual(objs.filter((o) => o.attributes.kind === 'machine').map((o) => o.id), ['machine:PR-3', 'machine:LC-1', 'machine:WR-2']);
+  assert.deepEqual(objs.filter((o) => labelOf(o, 'kind') === 'machine').map((o) => o.id), ['machine:PR-3', 'machine:LC-1', 'machine:WR-2']);
   assert.ok(kinds.filter((k) => k === 'supplier-lot').length >= 3);
   for (const o of objs) {
     assert.equal(o.schemaVersion, '1.0');
@@ -29,7 +29,7 @@ test('graph objects: part, 3 machines, lots and 8D status are atlassian:document
   s = approve(approve(s, 'D1'), 'D2');
   const st = statusObject(s, 'https://x.atlassian.net');
   assert.equal(st.id, '8d-status:7');
-  assert.deepEqual([st.attributes.step, st.attributes.approved, st.attributes.closed], ['D3', 2, false]);
+  assert.deepEqual([labelOf(st, 'step'), labelOf(st, 'approved'), labelOf(st, 'closed')], ['D3', '2', 'false']);
   assert.equal(st.url, 'https://x.atlassian.net/browse/QA-7');
   assert.doesNotMatch(JSON.stringify(st), /DRAFT SECRET/, 'status objects carry no step text');
   assert.throws(() => buildQualityObject({ kind: 'customer', id: 1, name: 'x' }));

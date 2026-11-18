@@ -94,8 +94,14 @@ async function call(product, method, path, body) {
   return res.status === 204 ? {} : res.json();
 }
 
+// The connector trigger runs without a user, so the site URL seen here is kept for its object links.
+const SITE_KEY = 'site:baseUrl';
 async function siteUrl() {
-  try { return (await call('jira', 'GET', '/rest/api/3/serverInfo')).baseUrl ?? ''; } catch { return ''; }
+  try {
+    const url = (await call('jira', 'GET', '/rest/api/3/serverInfo')).baseUrl ?? '';
+    if (url && url !== (await kvs.get(SITE_KEY))) await kvs.set(SITE_KEY, url);
+    return url;
+  } catch { return ''; }
 }
 
 async function makeIo() {
@@ -148,7 +154,7 @@ resolver.define('isAdmin', async () => ({ admin: await svc.hasPermission(await m
 // Admin-only: one test document through the connector and back, raw outcome shown on the overview.
 resolver.define('graphCheck', async () => {
   if (!(await svc.hasPermission(await makeIo(), 'ADMINISTER'))) throw new Error('Only a Jira admin can run the graph check');
-  return graphCheck({ connectionId: await kvs.get(CONNECTION_KEY) });
+  return graphCheck({ connectionId: await kvs.get(CONNECTION_KEY), baseUrl: await siteUrl() });
 });
 resolver.define('seedDemo', async ({ payload }) => svc.seedDemo(await makeIo(), { projectKey: payload?.projectKey, spaceId: payload?.spaceId }));
 resolver.define('generateReport', async ({ payload, context }) => svc.generateReport(await makeIo(), (await issueOf(context, payload)).key, payload?.spaceId));
@@ -216,7 +222,7 @@ export async function onConnectionChange(event) {
     records.push(...page.results.map((r) => normalize(r.value)));
     cursor = page.nextCursor;
   } while (cursor);
-  const result = await syncConnector({ records, connectionId: event?.connectionId });
+  const result = await syncConnector({ records, connectionId: event?.connectionId, baseUrl: (await kvs.get(SITE_KEY)) ?? '' });
   return { success: true, result };
 }
 
