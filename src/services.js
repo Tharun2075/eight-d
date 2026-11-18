@@ -323,5 +323,7 @@ export async function overview(io, now = Date.now()) {
   const summaries = new Map();
   const records = await visibleRecords(io, (await io.store.list('8d:')).map((r) => normalize(r)), summaries);
   const items = records.filter((r) => !r.closed).map((r) => ({ ...overviewRow(r, now), summary: summaries.get(String(r.issueId)) ?? '' }));
-  return { items, pareto: paretoCauses(records), closedCount: records.filter((r) => r.closed).length };
+  // Only an admin can load the demo data, so only an admin's empty overview offers it (asked only when empty).
+  const canLoadDemo = items.length === 0 && (await hasPermission(io, 'ADMINISTER'));
+  return { items, pareto: paretoCauses(records), closedCount: records.filter((r) => r.closed).length, canLoadDemo };
 }

@@ -5,7 +5,7 @@ import Lozenge from '@atlaskit/lozenge';
 import DynamicTable from '@atlaskit/dynamic-table';
 import EmptyState from '@atlaskit/empty-state';
 import ArrowLeftIcon from '@atlaskit/icon/core/arrow-left';
-import { paretoGeometry } from '../../../src/lib/overview.js';
+import { paretoGeometry, emptyOverviewText } from '../../../src/lib/overview.js';
 import { Loading, ErrorMsg, Empty, ContainmentClock } from './ui.jsx';
 import { STEPS, progress, currentStep } from '../../../src/lib/eightd.js';
 
@@ -113,7 +113,7 @@ function Overview({ open }) {
       <h1 className="ed-heading"><TitleMark />Open 8Ds</h1>
       <div className="ed-table">
         <DynamicTable head={head} rows={rows}
-          emptyView={<EmptyState header="No open 8D reports" description="Open a work item and start its 8D, or load the demo data below." />} />
+          emptyView={<EmptyState {...emptyOverviewText(data.canLoadDemo)} />} />
       </div>
       <h2>Root causes (Pareto)</h2>
       <Pareto rows={pareto} />

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isLateOnD5, lateStep, paretoCauses, paretoGeometry, overviewRow } from '../src/lib/overview.js';
+import { isLateOnD5, lateStep, paretoCauses, paretoGeometry, overviewRow, emptyOverviewText } from '../src/lib/overview.js';
 import { demoCases } from '../src/lib/seed.js';
 import { normalize, storageKey } from '../src/lib/eightd.js';
 import { overview } from '../src/services.js';
@@ -78,4 +78,15 @@ test('a failed visibility search is an error, never an empty overview', async ()
   for (const status of [401, 403, 500, undefined]) await assert.rejects(overview(make(status), NOW), new RegExp(`jira returned ${status}`));
   const r = await overview(make(400), NOW);
   assert.deepEqual(r.items, []);
+});
+
+test('empty overview offers the demo data only to an admin', async () => {
+  const admin = await overview(mockIo({ perms: { ADMINISTER: true } }), NOW);
+  assert.deepEqual([admin.items.length, admin.canLoadDemo], [0, true]);
+  assert.match(emptyOverviewText(admin.canLoadDemo).description, /load the demo data below/);
+  const user = await overview(mockIo({ perms: {} }), NOW);
+  assert.equal(user.canLoadDemo, false);
+  const text = emptyOverviewText(user.canLoadDemo);
+  assert.equal(text.header, 'No open 8D reports you can see.');
+  assert.doesNotMatch(`${text.header} ${text.description}`, /demo/i);
 });

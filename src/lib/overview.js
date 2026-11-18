@@ -65,4 +65,9 @@ export function paretoGeometry(rows, { width = 640, height = 240, left = 36, rig
   return { bars, points, line, yTicks, width, height, plot, base, slot };
 }
 
+// Empty overview text: the demo-data hint only for a user who may load it (admin), plain text for everyone else.
+export const emptyOverviewText = (canLoadDemo) => (canLoadDemo
+  ? { header: 'No open 8D reports', description: 'Open a work item and start its 8D, or load the demo data below.' }
+  : { header: 'No open 8D reports you can see.', description: 'Open a work item and start its 8D.' });
+
 export { STEPS };
