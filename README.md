@@ -8,8 +8,8 @@ Parts:
 - **8D panel** on each work item: D1-D8 stepper, progress bar, text fields, Approve per step.
 - **8D Overview** global page: all open 8Ds you can see.
 - **8D Coach** Rovo agent, with the `draftProblemStatement` action (5W2H draft of D2)
-  and `listOpen8Ds`. The same six tools are exposed through a Rovo MCP server; listing works,
-  tool calls wait on an Atlassian consent fix (ECOHELP-186879).
+  and `listOpen8Ds`. The same six tools are exposed through a Rovo MCP server
+  (`https://mcp.atlassian.com/forge/<appId>`), so outside AI clients can call them too.
 - **Rovo actions**: find similar nonconformances, 5-Why scaffold, corrective-action preview,
   customer report preview. Read-only; writes need a human click in the panel.
 - **Teamwork Graph connector** (`TG_ENABLED`, on unless set to `false`): pushes part, machine and
@@ -43,7 +43,9 @@ Eight-D is an assistant. It never decides anything on its own:
 ## Data flow
 
 - **Storage:** 8D state is kept in Forge hosted storage (KVS) in the customer's
-  Atlassian site, one record per work item (`8d:<issueId>`).
+  Atlassian site, one record per work item (`8d:<issueId>`). A copy of each record is kept in
+  Jira Forge app properties (`eightd.<issueId>`), which only the app itself can read. MCP tool
+  calls run in the app's Confluence installation, whose KVS is separate, and read the copy.
 - **Reads:** work items are read through the Jira REST API as the signed-in user,
   so nobody sees an 8D for a work item Jira hides from them.
 - **No egress:** the manifest declares no external fetch permissions. No data
@@ -67,6 +69,13 @@ Eight-D is an assistant. It never decides anything on its own:
   recurrence", "6 of 8 steps approved".
 - **Rovo (if your site has Rovo):** Ask Rovo > 8D Coach > "Draft the D2 problem statement for
   this work item".
+- **MCP (any client with remote MCP + OAuth):** in admin.atlassian.com > your site > Site settings >
+  Connected apps > Eight-D, open "View app details" on BOTH rows (Confluence and Jira) and click
+  "Enable tools" under "Expose tools to MCP-compatible apps". Add the server
+  `https://mcp.atlassian.com/forge/<appId>` (the App ID is on the Devpost page), for example
+  `claude mcp add --transport http eightd <url>` in Claude Code, sign in, pick your site, Accept.
+  Ask "draft the problem statement for SQ-9" or "list open 8Ds". If the list is empty, open
+  Apps > 8D Overview in Jira once and ask again.
 - **Video:** https://youtu.be/T9lp-VFKhn8
 
 All demo data is synthetic.
