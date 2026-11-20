@@ -103,3 +103,16 @@ test('privacy: 8D text only goes to app properties, never to an issue property',
   for (const line of issueProps) assert.match(line, /method: 'DELETE'/, `issue property call that is not a cleanup DELETE: ${line}`);
   assert.doesNotMatch(readFileSync(new URL('../manifest.yml', import.meta.url), 'utf8'), /jira:entityProperty/);
 });
+
+test('a head and chunk from two different saves read as missing, and the list skips it', async () => {
+  const { props, request } = fakeAppProps();
+  const a = { ...records()[0], note: 'a'.repeat(40000) };
+  const b = { list: Array(30000).fill(1) }; // A's prefix ends inside a string, B goes on outside one: not JSON
+  await putRecord(request, '100', a);
+  const headA = props.get(appKey('100'));
+  await putRecord(request, '100', b);
+  props.set(appKey('100'), headA); // head from save A, chunks from save B
+  await putRecord(request, '101', records()[1]);
+  assert.ok((await getRecord(request, '100')) === undefined, 'mixed record reads as missing');
+  assert.deepEqual((await listRecords(request)).map((r) => r.issueId), ['101']);
+});

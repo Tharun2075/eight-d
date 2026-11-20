@@ -56,7 +56,7 @@ export async function getRecord(request, issueId) {
     if (typeof part?.s !== 'string') return undefined; // half-written: treat as missing
     parts.push(part.s);
   }
-  return decodeRecord(parts);
+  try { return decodeRecord(parts); } catch { return undefined; } // mixed head/chunk mid-save: treat as missing
 }
 
 // Every stored 8D record. The caller still filters by what the user may see (visibleRecords).
