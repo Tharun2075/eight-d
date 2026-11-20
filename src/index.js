@@ -6,7 +6,7 @@ import { kvs, WhereConditions } from '@forge/kvs';
 import * as svc from './services.js';
 import { syncConnector, makeGraphReader, graphCheck } from './graph.js';
 import {
-  normalize, reducer, storageKey, isSafetyRelated, draft5W2H, SAFETY_MESSAGE,
+  normalize, reducer, storageKey, isSafetyRelated, draft5W2H, SAFETY_MESSAGE, mirrorOf, MIRROR_KEY,
 } from './lib/eightd.js';
 
 const ISSUE_FIELDS = 'summary,description,labels,components,created,reporter';
@@ -57,7 +57,7 @@ resolver.define('dispatch', async ({ payload, context }) => {
   if (!(await canEdit(id))) throw new Error('You need edit permission on this work item');
   const action = { type, stepId, field, key: dataKey, value, accountId: context.accountId, at: new Date().toISOString() };
   const next = reducer(await loadState(id, key), action);
-  await kvs.set(storageKey(id), next);
+  await saveRecord(storageKey(id), next);
   return { state: next };
 });
 
@@ -72,7 +72,7 @@ resolver.define('draftD2', async ({ payload, context }) => {
   for (const field of Object.keys(state.steps.D2.fields)) {
     state = reducer(state, { type: 'setField', stepId: 'D2', field, value: draft[field] });
   }
-  await kvs.set(storageKey(id), state);
+  await saveRecord(storageKey(id), state);
   return { state };
 });
 
@@ -104,14 +104,44 @@ async function siteUrl() {
   } catch { return ''; }
 }
 
-async function makeIo() {
-  return {
+// Saves to app storage; an 8D record is also mirrored to its Jira issue property (see mirrorOf).
+async function saveRecord(key, value) {
+  await kvs.set(key, value);
+  if (key.startsWith('8d:') && value?.issueId) await writeMirror(value);
+}
+
+// As the user (an editor when saving). 'mirror:<id>' remembers which version Jira holds. A failure is logged, never thrown.
+const mirrorFlag = (value) => `mirror:${value.issueId}`;
+async function writeMirror(value) {
+  try {
+    const res = await api.asUser().requestJira(route`/rest/api/3/issue/${String(value.issueId)}/properties/${MIRROR_KEY}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mirrorOf(value)),
+    });
+    if (res.ok) await kvs.set(mirrorFlag(value), value.updatedAt ?? '');
+    else console.warn(`8D mirror: Jira returned ${res.status}`);
+  } catch (e) { console.warn(`8D mirror failed: ${e.message}`); }
+}
+
+// Records saved before the mirror existed are mirrored when the Jira list next loads them.
+async function mirrorStale(records) {
+  await Promise.all(records.filter((r) => r?.issueId).map(async (r) => {
+    if ((await kvs.get(mirrorFlag(r))) !== (r.updatedAt ?? '')) await writeMirror(r);
+  }));
+}
+
+// MCP tools run in the Confluence installation, whose app storage holds no 8Ds.
+const inConfluence = (context) => String(context?.installContext ?? '').includes(':confluence:');
+
+async function makeIo(context) {
+  const mirrored = inConfluence(context);
+  const io = {
     jira: (m, p, b) => call('jira', m, p, b),
     confluence: (m, p, b) => call('confluence', m, p, b),
     store: {
       get: (k) => kvs.get(k),
-      set: (k, v) => kvs.set(k, v),
+      set: (k, v) => saveRecord(k, v),
       async list(prefix) {
+        if (mirrored && prefix === '8d:') return svc.listMirrored(io);
         const out = [];
         let cursor;
         do {
@@ -119,6 +149,7 @@ async function makeIo() {
           out.push(...page.results.map((r) => r.value));
           cursor = page.nextCursor;
         } while (cursor);
+        if (prefix === '8d:') await mirrorStale(out);
         return out;
       },
     },
@@ -126,6 +157,7 @@ async function makeIo() {
     baseUrl: await siteUrl(),
     graphSync: async () => syncAll(await kvs.get(CONNECTION_KEY)),
   };
+  return io;
 }
 
 // Teamwork Graph reader as the user; null (TG_ENABLED=false) means "use the Jira fallback".
@@ -178,33 +210,33 @@ const NEED_KEY = { error: 'Give a Jira work item key, for example QA-12.' };
 
 // Rovo actions below are read-only (actionVerb GET, see PITFALLS 14). Writes happen only when a
 // human presses the button in the 8D panel; the action result says so.
-export async function findSimilarNonconformances(payload) {
+export async function findSimilarNonconformances(payload, context) {
   const key = keyFrom(payload);
-  return key ? svc.findSimilar(await makeIo(), key) : NEED_KEY;
+  return key ? svc.findSimilar(await makeIo(context), key) : NEED_KEY;
 }
 
-export async function scaffoldFiveWhyAction(payload) {
+export async function scaffoldFiveWhyAction(payload, context) {
   const key = keyFrom(payload);
   if (!key) return NEED_KEY;
-  return { ...(await svc.scaffoldWhy(await makeIo(), key)), approval: 'Draft only: pick each answer in the D4 step of the 8D panel, then press Approve.' };
+  return { ...(await svc.scaffoldWhy(await makeIo(context), key)), approval: 'Draft only: pick each answer in the D4 step of the 8D panel, then press Approve.' };
 }
 
-export async function createCorrectiveActionsAction(payload) {
+export async function createCorrectiveActionsAction(payload, context) {
   const key = keyFrom(payload);
   if (!key) return NEED_KEY;
-  return { ...(await svc.previewCorrectiveActions(await makeIo(), key)), approval: 'Preview only: press "Create corrective actions" in the 8D panel to create these linked work items.' };
+  return { ...(await svc.previewCorrectiveActions(await makeIo(context), key)), approval: 'Preview only: press "Create corrective actions" in the 8D panel to create these linked work items.' };
 }
 
-export async function generateReportAction(payload) {
+export async function generateReportAction(payload, context) {
   const key = keyFrom(payload);
   if (!key) return NEED_KEY;
-  const r = await svc.previewReport(await makeIo(), key);
+  const r = await svc.previewReport(await makeIo(context), key);
   return { issueKey: r.issueKey, title: r.title, approvedSteps: r.approvedSteps, approval: 'Preview only: press "Generate customer report" at D8 in the 8D panel to publish the Confluence page.' };
 }
 
 // Rovo action and MCP tool: open 8Ds with progress.
-export async function listOpen8Ds() {
-  return { items: (await svc.overview(await makeIo())).items };
+export async function listOpen8Ds(payload, context) {
+  return { items: (await svc.overview(await makeIo(context))).items };
 }
 
 // Teamwork Graph connector: when an admin connects, push the part, machines, supplier lots and the
