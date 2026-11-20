@@ -156,15 +156,6 @@ modules:
       datasource:
         onConnectionChange:
           function: onConnectionChangeFn
-  jira:entityProperty:
-    - key: eightd-mirror
-      entityType: issue
-      propertyKey: eightd
-      values:
-        - path: v
-          type: number
-        - path: open
-          type: string
   function:
     - key: resolver
       handler: index.handler

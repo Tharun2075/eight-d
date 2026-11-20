@@ -9,7 +9,7 @@
 //   graph?: { related(families) -> [issueKey] }  (Teamwork Graph reader, may throw)
 //   baseUrl: 'https://site.atlassian.net'
 // }
-import { normalize, storageKey, reducer, fromMirror, MIRROR_KEY } from './lib/eightd.js';
+import { normalize, storageKey, reducer } from './lib/eightd.js';
 import { buildSimilarJql, buildRootCauseCql, rankSimilar, normalizePages, partFamilies, jqlString } from './lib/similar.js';
 import { scaffoldFiveWhy } from './lib/fivewhy.js';
 import { correctiveActionDrafts, buildIssuePayload, buildLinkPayload } from './lib/actions.js';
@@ -316,22 +316,6 @@ export async function visibleRecords(io, records, summaries = new Map()) {
     }
   }
   return records.filter((r) => visible.has(String(r.issueId)));
-}
-
-// Every 8D as Jira holds it (issue property `eightd`), for runs outside the Jira installation (MCP).
-// The JQL runs as the user, so only work items they may browse come back.
-export async function listMirrored(io) {
-  const out = [];
-  let nextPageToken;
-  do {
-    const res = await io.jira('POST', '/rest/api/3/search/jql', { jql: `issue.property[${MIRROR_KEY}].v = 1`, fields: ['summary'], properties: [MIRROR_KEY], maxResults: 100, ...(nextPageToken ? { nextPageToken } : {}) });
-    for (const it of res.issues ?? []) {
-      const m = it.properties?.[MIRROR_KEY];
-      if (m) out.push(fromMirror(m, it.id, it.key));
-    }
-    nextPageToken = res.nextPageToken;
-  } while (nextPageToken);
-  return out;
 }
 
 // Overview: open 8Ds with late flags, plus the Pareto of approved root causes (closed and open).

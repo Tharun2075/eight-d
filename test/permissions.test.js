@@ -58,13 +58,24 @@ test('restricted user: actions and reports on another project fail, nothing is w
   assert.equal(io.calls.filter((c) => c.method !== 'GET' && !c.path.endsWith('/search/jql')).length, 0);
 });
 
-test('every product call in src runs as the signed-in user (no asApp)', () => {
+// The one asApp call is appRequest in index.js, used only for the app-private 8D copy
+// (Jira Forge app properties, lib/appstore.js); every other product call runs as the user.
+test('every product call in src runs as the signed-in user, except the app-property copy', () => {
   const files = ['src/index.js', 'src/services.js', ...readdirSync('src/lib').map((f) => `src/lib/${f}`)];
   for (const f of files) {
     const src = readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
-    assert.doesNotMatch(src, /asApp\s*\(/, f);
+    const asApp = [...src.matchAll(/asApp\s*\(/g)];
+    assert.equal(asApp.length, f === 'src/index.js' ? 1 : 0, `${f}: asApp only in appRequest`);
+    if (asApp.length) {
+      assert.match(src.slice(asApp[0].index - 120, asApp[0].index), /async function appRequest\(/, f);
+      for (const m of src.matchAll(/appRequest\b/g)) {
+        assert.match(src.slice(m.index - 40, m.index + 12), /(async function appRequest|(putRecord|getRecord|listRecords)\(appRequest)/, `${f}: appRequest only for appstore`);
+      }
+    }
     for (const m of src.matchAll(/\.(requestJira|requestConfluence|requestGraph)\b/g)) {
-      assert.match(src.slice(Math.max(0, m.index - 12), m.index), /asUser\(\)$/, `${f}: ${m[1]} must follow asUser()`);
+      assert.match(src.slice(Math.max(0, m.index - 12), m.index), /as(User|App)\(\)$/, `${f}: ${m[1]} must follow asUser()`);
     }
   }
+  const store = readFileSync(new URL('../src/lib/appstore.js', import.meta.url), 'utf8');
+  assert.deepEqual([...store.matchAll(/'(\/rest\/[^'`]*)'/g)].map((m) => m[1]), ['/rest/forge/1/app/properties']);
 });

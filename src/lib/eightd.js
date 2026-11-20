@@ -130,28 +130,6 @@ export function normalize(stored, issueId, issueKey = null) {
   return { ...base, ...stored, steps, data, startedAt: stored.startedAt ?? stored.updatedAt ?? null };
 }
 
-// Slim copy of a record kept as the Jira issue property `eightd`. App storage is per installation and
-// MCP tools run in the Confluence installation, whose storage has no 8Ds; Jira properties are shared.
-// Holds only step approval times, start, closed and the 6M cause category: no text, no people.
-export const MIRROR_KEY = 'eightd';
-export function mirrorOf(stored) {
-  const s = normalize(stored);
-  const cat = String(s.steps.D4.fields?.causeCategory ?? '').trim().toLowerCase();
-  return {
-    v: 1, open: s.closed ? 'no' : 'yes', closed: Boolean(s.closed), startedAt: s.startedAt ?? null,
-    approvedAt: Object.fromEntries(STEPS.filter((x) => s.steps[x.id].approvedBy).map((x) => [x.id, s.steps[x.id].approvedAt ?? null])),
-    cause: s.steps.D4.approvedBy && cat ? CAUSE_CATEGORIES.find((c) => c.toLowerCase() === cat) ?? 'Other' : '',
-  };
-}
-export function fromMirror(m, issueId, issueKey = null) {
-  const s = initialState(issueId, issueKey);
-  for (const [id, at] of Object.entries(m?.approvedAt ?? {})) {
-    if (s.steps[id]) s.steps[id] = { ...s.steps[id], approvedBy: 'mirror', approvedAt: at };
-  }
-  if (m?.cause) s.steps.D4.fields.causeCategory = m.cause;
-  return { ...s, closed: Boolean(m?.closed), startedAt: m?.startedAt ?? null };
-}
-
 // Fishbone (6M) cause categories for the Pareto chart. Processes and things, never people.
 export const CAUSE_CATEGORIES = ['Method', 'Machine', 'Material', 'Measurement', 'Environment', 'Management system'];
 

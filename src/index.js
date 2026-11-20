@@ -6,8 +6,9 @@ import { kvs, WhereConditions } from '@forge/kvs';
 import * as svc from './services.js';
 import { syncConnector, makeGraphReader, graphCheck } from './graph.js';
 import {
-  normalize, reducer, storageKey, isSafetyRelated, draft5W2H, SAFETY_MESSAGE, mirrorOf, MIRROR_KEY,
+  normalize, reducer, storageKey, isSafetyRelated, draft5W2H, SAFETY_MESSAGE,
 } from './lib/eightd.js';
+import { putRecord, getRecord, listRecords } from './lib/appstore.js';
 
 const ISSUE_FIELDS = 'summary,description,labels,components,created,reporter';
 
@@ -104,28 +105,46 @@ async function siteUrl() {
   } catch { return ''; }
 }
 
-// Saves to app storage; an 8D record is also mirrored to its Jira issue property (see mirrorOf).
+// Saves to app storage; an 8D record is also copied to Jira app properties (lib/appstore.js).
 async function saveRecord(key, value) {
   await kvs.set(key, value);
-  if (key.startsWith('8d:') && value?.issueId) await writeMirror(value);
+  if (key.startsWith('8d:') && value?.issueId) await writeApp(value);
 }
 
-// As the user (an editor when saving). 'mirror:<id>' remembers which version Jira holds. A failure is logged, never thrown.
-const mirrorFlag = (value) => `mirror:${value.issueId}`;
-async function writeMirror(value) {
+// Jira Forge app properties: asApp only, readable by this app alone, reachable from both installations.
+async function appRequest(method, path, body) {
+  const res = await api.asApp().requestJira(assumeTrustedRoute(path), body === undefined ? { method } : {
+    method, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body),
+  });
+  const json = res.status === 200 ? await res.json().catch(() => null) : null;
+  return { status: res.status, json };
+}
+
+// 'app:<id>' remembers which version the app properties hold. A failure is logged, never thrown.
+const appFlag = (value) => `app:${value.issueId}`;
+async function writeApp(value) {
   try {
-    const res = await api.asUser().requestJira(route`/rest/api/3/issue/${String(value.issueId)}/properties/${MIRROR_KEY}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mirrorOf(value)),
-    });
-    if (res.ok) await kvs.set(mirrorFlag(value), value.updatedAt ?? '');
-    else console.warn(`8D mirror: Jira returned ${res.status}`);
-  } catch (e) { console.warn(`8D mirror failed: ${e.message}`); }
+    await putRecord(appRequest, value.issueId, value);
+    await kvs.set(appFlag(value), value.updatedAt ?? '');
+  } catch (e) { console.warn(`8D app copy failed: ${e.status ?? e.message}`); }
 }
 
-// Records saved before the mirror existed are mirrored when the Jira list next loads them.
-async function mirrorStale(records) {
+// Builds up to 3.7.0 kept a status copy in the 'eightd' issue property; it is removed as the user ('mirror:<id>' marks it).
+async function dropOldMirror(issueId) {
+  const flag = `mirror:${issueId}`;
+  if ((await kvs.get(flag)) === undefined) return;
+  try {
+    const res = await api.asUser().requestJira(route`/rest/api/3/issue/${String(issueId)}/properties/eightd`, { method: 'DELETE' });
+    if (res.ok || res.status === 404) await kvs.delete(flag);
+    else console.warn(`8D old mirror: Jira returned ${res.status}`);
+  } catch (e) { console.warn(`8D old mirror cleanup failed: ${e.message}`); }
+}
+
+// Records saved before the app copy existed are copied when the Jira list next loads them.
+async function copyStale(records) {
   await Promise.all(records.filter((r) => r?.issueId).map(async (r) => {
-    if ((await kvs.get(mirrorFlag(r))) !== (r.updatedAt ?? '')) await writeMirror(r);
+    await dropOldMirror(r.issueId);
+    if ((await kvs.get(appFlag(r))) !== (r.updatedAt ?? '')) await writeApp(r);
   }));
 }
 
@@ -138,10 +157,13 @@ async function makeIo(context) {
     jira: (m, p, b) => call('jira', m, p, b),
     confluence: (m, p, b) => call('confluence', m, p, b),
     store: {
-      get: (k) => kvs.get(k),
+      // In Confluence, 8D records come from the Jira app properties; callers have already read the work item as the user.
+      get: (k) => (mirrored && k.startsWith('8d:') ? getRecord(appRequest, k.slice(3)) : kvs.get(k)),
       set: (k, v) => saveRecord(k, v),
       async list(prefix) {
-        if (mirrored && prefix === '8d:') return svc.listMirrored(io);
+        if (mirrored && prefix === '8d:') {
+          return listRecords(appRequest);
+        }
         const out = [];
         let cursor;
         do {
@@ -149,7 +171,7 @@ async function makeIo(context) {
           out.push(...page.results.map((r) => r.value));
           cursor = page.nextCursor;
         } while (cursor);
-        if (prefix === '8d:') await mirrorStale(out);
+        if (prefix === '8d:') await copyStale(out);
         return out;
       },
     },
